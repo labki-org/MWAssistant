@@ -68,10 +68,9 @@
     }
 
     $(function () {
-        // Only run on Special:MWAssistant
-        if (mw.config.get('wgCanonicalSpecialPageName') !== 'MWAssistant') {
-            return;
-        }
+        // Module is only loaded on Special:MWAssistant, so we can run immediately.
+        console.log('MWAssistant chat module loaded.');
+
         renderUI();
 
         $('#mwassistant-chat-send').on('click', sendMessage);

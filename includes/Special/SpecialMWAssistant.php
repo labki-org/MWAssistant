@@ -2,10 +2,11 @@
 
 namespace MWAssistant\Special;
 
-use SpecialPage;
-use Html;
-use OutputPage;
+use MediaWiki\SpecialPage\SpecialPage;
+use MediaWiki\Html\Html;
+use MediaWiki\Output\OutputPage;
 use Skin;
+use PermissionsError;
 
 class SpecialMWAssistant extends SpecialPage
 {

@@ -17,9 +17,12 @@ class JWT
             'sub' => $user->getName(),
             'roles' => $roles,
             'client_id' => 'mw_extension',
-            'iat' => $now
+            'iat' => $now,
+            'exp' => $now + 3600 // 1 hour expiration
         ]);
 
+        \wfDebugLog('mwassistant', 'JWT Data: secret len=' . strlen($secret) . ', algo=HS256, payload=' . $payload);
+        \wfDebugLog('mwassistant', 'JWT Data: secret=' . $secret);
         $base64UrlHeader = self::base64UrlEncode($header);
         $base64UrlPayload = self::base64UrlEncode($payload);
 

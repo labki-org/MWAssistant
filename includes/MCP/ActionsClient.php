@@ -43,10 +43,8 @@ class ActionsClient
 
     private function getUserRoles(UserIdentity $user): array
     {
-        $userObj = MediaWikiServices::getInstance()
-            ->getUserFactory()
-            ->newFromUserIdentity($user);
-
-        return $userObj->getGroups();
+        return MediaWikiServices::getInstance()
+            ->getUserGroupManager()
+            ->getUserGroups($user);
     }
 }

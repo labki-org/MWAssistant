@@ -26,7 +26,12 @@ class ChatClient
             'max_tokens' => 512,
         ];
 
+        $secret = \MWAssistant\Config::getJWTSecret();
+        \wfDebugLog('mwassistant', 'Config check - Secret length: ' . strlen($secret) . ', Base URL: ' . \MWAssistant\Config::getMCPBaseUrl());
+
+        \wfDebugLog('mwassistant', 'ChatClient payload: ' . json_encode($payload));
         $resp = $this->client->postJson('/chat/', $payload, $jwt);
+        \wfDebugLog('mwassistant', 'ChatClient raw response: ' . print_r($resp, true));
 
         if (!$resp['ok']) {
             return [
@@ -41,23 +46,8 @@ class ChatClient
 
     private function getUserRoles(UserIdentity $user): array
     {
-        // Simple implementation: getting groups.
-        // In a real scenario, you might want to map these to specific MCP roles.
-        // For now, we assume the user object we have is a User object which has getGroups(), 
-        // but UserIdentity doesn't have getGroups(). We need to convert or assume it's a User.
-        // The calling code (API) likely has the User object.
-        // But to be safe let's try to load the user if it's just an identity, 
-        // or rely on the caller passing a User object.
-        // Since we are inside MediaWiki, we can use the UserFactory service 
-        // or just accept that $user might be a User object.
-
-        // Actually, let's use the UserFactory to be safe if we only have UserIdentity
-        // But explicit type hit in signature says UserIdentity.
-
-        $userObj = \MediaWiki\MediaWikiServices::getInstance()
-            ->getUserFactory()
-            ->newFromUserIdentity($user);
-
-        return $userObj->getGroups();
+        return \MediaWiki\MediaWikiServices::getInstance()
+            ->getUserGroupManager()
+            ->getUserGroups($user);
     }
 }

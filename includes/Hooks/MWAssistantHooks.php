@@ -2,7 +2,7 @@
 
 namespace MWAssistant\Hooks;
 
-use OutputPage;
+use MediaWiki\Output\OutputPage;
 use Skin;
 
 class MWAssistantHooks

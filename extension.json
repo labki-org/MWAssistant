@@ -2,7 +2,7 @@
     "name": "MWAssistant",
     "version": "0.1.0",
     "author": [
-        "Your name"
+        "Daniel Aharoni"
     ],
     "descriptionmsg": "mwassistant-desc",
     "type": "other",
@@ -35,7 +35,9 @@
             "targets": [
                 "desktop",
                 "mobile"
-            ]
+            ],
+            "localBasePath": "",
+            "remoteExtPath": "MWAssistant"
         },
         "ext.mwassistant.editor": {
             "scripts": [
@@ -50,7 +52,9 @@
             ],
             "targets": [
                 "desktop"
-            ]
+            ],
+            "localBasePath": "",
+            "remoteExtPath": "MWAssistant"
         }
     },
     "SpecialPages": {
@@ -62,9 +66,6 @@
     "AvailableRights": [
         "mwassistant-use"
     ],
-    "Rights": {
-        "mwassistant-use": "Use MWAssistant AI features"
-    },
     "APIModules": {
         "mwassistant-chat": "MWAssistant\\Api\\ApiMWAssistantChat",
         "mwassistant-search": "MWAssistant\\Api\\ApiMWAssistantSearch",
@@ -75,9 +76,15 @@
     "url": "https://www.mediawiki.org/wiki/Extension:MWAssistant",
     "license-name": "GPL-3.0-or-later",
     "config": {
-        "MWAssistantMCPBaseUrl": "http://localhost:8000",
-        "MWAssistantJWTSecret": "",
-        "MWAssistantEnabled": true
+        "MWAssistantMCPBaseUrl": {
+            "value": "http://localhost:8000"
+        },
+        "MWAssistantJWTSecret": {
+            "value": ""
+        },
+        "MWAssistantEnabled": {
+            "value": true
+        }
     },
     "manifest_version": 2
 }

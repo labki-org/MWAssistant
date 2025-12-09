@@ -3,5 +3,8 @@
         "authors": []
     },
     "mwassistant-desc": "AI Assistant integration using MCP",
-    "mwassistant-chat-title": "AI Assistant"
+    "mwassistant": "MWAssistant",
+    "mwassistant-chat-title": "AI Assistant",
+    "right-mwassistant-use": "Use MWAssistant AI features",
+    "action-mwassistant-use": "use MWAssistant AI features"
 }

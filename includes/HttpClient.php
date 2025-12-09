@@ -29,14 +29,15 @@ class HttpClient
             [
                 'method' => 'POST',
                 'timeout' => 30,
-                'headers' => [
-                    'Content-Type' => 'application/json',
-                    'Authorization' => 'Bearer ' . $jwt,
-                ],
                 'postData' => json_encode($payload)
             ],
             __METHOD__
         );
+
+        $req->setHeader('Content-Type', 'application/json');
+        $req->setHeader('Authorization', 'Bearer ' . $jwt);
+        $req->setHeader('User-Agent', 'MWAssistant/0.1.0 (MediaWiki)');
+
 
         $status = $req->execute();
         $code = $req->getStatus();

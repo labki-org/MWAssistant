@@ -21,11 +21,13 @@ get_cache_dir() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CACHE_BASE="$(get_cache_dir)"
 MW_DIR="${MW_DIR:-$CACHE_BASE/mediawiki-MWAssistant-test}"
-EXT_DIR="$SCRIPT_DIR"
+# If script is in tests/scripts, ext dir is two levels up
+EXT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 MW_BRANCH=REL1_44
 MW_PORT=8890
 MW_ADMIN_USER=Admin
 MW_ADMIN_PASS=dockerpass
+MW_JWT_SECRET=some-long-random-secret
 
 CONTAINER_WIKI="/var/www/html/w"
 CONTAINER_LOG_DIR="/var/log/mwassistant"
@@ -168,7 +170,7 @@ docker compose exec -T mediawiki bash -lc "
     echo 'wfLoadExtension(\"MWAssistant\");'
     echo '\$wgDebugLogGroups[\"mwassistant\"] = \"$CONTAINER_LOG_FILE\";'
     echo '\$wgMWAssistantMCPBaseUrl = \"http://host.docker.internal:8000\";'
-    echo '\$wgMWAssistantJWTSecret = \"your-secret-key\";'
+    echo '\$wgMWAssistantJWTSecret = \"$MW_JWT_SECRET\";'
     echo '\$wgMWAssistantEnabled = true;'
     echo '\$wgGroupPermissions[\"user\"][\"mwassistant-use\"] = true;'
   } >> $CONTAINER_WIKI/LocalSettings.php

@@ -2,7 +2,7 @@
 
 namespace MWAssistant\Api;
 
-use ApiBase;
+use MediaWiki\Api\ApiBase;
 use MWAssistant\MCP\SearchClient;
 
 class ApiMWAssistantSearch extends ApiBase

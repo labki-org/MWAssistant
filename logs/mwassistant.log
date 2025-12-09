@@ -1,0 +1,130 @@
+2025-12-09 05:24:23 55ab2650bbea my_wiki: Config check - Secret length: 23, Base URL: http://host.docker.internal:8000
+2025-12-09 05:24:23 55ab2650bbea my_wiki: ChatClient payload: {"messages":[{"role":"user","content":"HI!"}],"max_tokens":512}
+2025-12-09 05:24:23 55ab2650bbea my_wiki: ChatClient raw response: Array
+(
+    [ok] => 
+    [code] => 401
+    [body] => {"detail":"Not authenticated"}
+)
+2025-12-09 05:25:39 55ab2650bbea my_wiki: JWT Data: secret len=23, algo=HS256, payload={"sub":"Admin","roles":["bureaucrat","interface-admin","sysop"],"client_id":"mw_extension","iat":1765257939,"exp":1765261539}
+2025-12-09 05:25:39 55ab2650bbea my_wiki: Config check - Secret length: 23, Base URL: http://host.docker.internal:8000
+2025-12-09 05:25:39 55ab2650bbea my_wiki: ChatClient payload: {"messages":[{"role":"user","content":"Test"}],"max_tokens":512}
+2025-12-09 05:25:39 55ab2650bbea my_wiki: ChatClient raw response: Array
+(
+    [ok] => 
+    [code] => 401
+    [body] => {"detail":"Not authenticated"}
+)
+2025-12-09 05:29:32 55ab2650bbea my_wiki: JWT Data: secret len=23, algo=HS256, payload={"sub":"Admin","roles":["bureaucrat","interface-admin","sysop"],"client_id":"mw_extension","iat":1765258172,"exp":1765261772}
+2025-12-09 05:29:32 55ab2650bbea my_wiki: JWT Data: secret=some-long-random-secret
+2025-12-09 05:29:32 55ab2650bbea my_wiki: Config check - Secret length: 23, Base URL: http://host.docker.internal:8000
+2025-12-09 05:29:32 55ab2650bbea my_wiki: ChatClient payload: {"messages":[{"role":"user","content":"ad"}],"max_tokens":512}
+2025-12-09 05:29:32 55ab2650bbea my_wiki: ChatClient raw response: Array
+(
+    [ok] => 
+    [code] => 401
+    [body] => {"detail":"Not authenticated"}
+)
+2025-12-09 05:33:17 55ab2650bbea my_wiki: JWT Data: secret len=23, algo=HS256, payload={"sub":"Admin","roles":["bureaucrat","interface-admin","sysop"],"client_id":"mw_extension","iat":1765258397,"exp":1765261997}
+2025-12-09 05:33:17 55ab2650bbea my_wiki: JWT Data: secret=some-long-random-secret
+2025-12-09 05:33:17 55ab2650bbea my_wiki: Config check - Secret length: 23, Base URL: http://host.docker.internal:8000
+2025-12-09 05:33:17 55ab2650bbea my_wiki: ChatClient payload: {"messages":[{"role":"user","content":"hi"}],"max_tokens":512}
+2025-12-09 05:33:53 55ab2650bbea my_wiki: JWT Data: secret len=23, algo=HS256, payload={"sub":"Admin","roles":["bureaucrat","interface-admin","sysop"],"client_id":"mw_extension","iat":1765258433,"exp":1765262033}
+2025-12-09 05:33:53 55ab2650bbea my_wiki: JWT Data: secret=some-long-random-secret
+2025-12-09 05:33:53 55ab2650bbea my_wiki: Config check - Secret length: 23, Base URL: http://host.docker.internal:8000
+2025-12-09 05:33:53 55ab2650bbea my_wiki: ChatClient payload: {"messages":[{"role":"user","content":"a"}],"max_tokens":512}
+2025-12-09 05:33:55 55ab2650bbea my_wiki: ChatClient raw response: Array
+(
+    [ok] => 1
+    [code] => 200
+    [body] => Array
+        (
+            [messages] => Array
+                (
+                    [0] => Array
+                        (
+                            [role] => user
+                            [content] => a
+                        )
+
+                    [1] => Array
+                        (
+                            [role] => assistant
+                            [content] => It seems like your message is incomplete. Could you please provide more details or clarify what you would like to know?
+                        )
+
+                )
+
+            [used_tools] => Array
+                (
+                )
+
+        )
+
+)
+2025-12-09 05:34:16 55ab2650bbea my_wiki: JWT Data: secret len=23, algo=HS256, payload={"sub":"Admin","roles":["bureaucrat","interface-admin","sysop"],"client_id":"mw_extension","iat":1765258456,"exp":1765262056}
+2025-12-09 05:34:16 55ab2650bbea my_wiki: JWT Data: secret=some-long-random-secret
+2025-12-09 05:34:16 55ab2650bbea my_wiki: Config check - Secret length: 23, Base URL: http://host.docker.internal:8000
+2025-12-09 05:34:16 55ab2650bbea my_wiki: ChatClient payload: {"messages":[{"role":"user","content":"Hi. How are you?"}],"max_tokens":512}
+2025-12-09 05:34:17 55ab2650bbea my_wiki: ChatClient raw response: Array
+(
+    [ok] => 1
+    [code] => 200
+    [body] => Array
+        (
+            [messages] => Array
+                (
+                    [0] => Array
+                        (
+                            [role] => user
+                            [content] => Hi. How are you?
+                        )
+
+                    [1] => Array
+                        (
+                            [role] => assistant
+                            [content] => Hello! I'm here and ready to assist you. How can I help you today?
+                        )
+
+                )
+
+            [used_tools] => Array
+                (
+                )
+
+        )
+
+)
+2025-12-09 05:35:37 55ab2650bbea my_wiki: JWT Data: secret len=23, algo=HS256, payload={"sub":"Admin","roles":["bureaucrat","interface-admin","sysop"],"client_id":"mw_extension","iat":1765258537,"exp":1765262137}
+2025-12-09 05:35:37 55ab2650bbea my_wiki: JWT Data: secret=some-long-random-secret
+2025-12-09 05:35:37 55ab2650bbea my_wiki: Config check - Secret length: 23, Base URL: http://host.docker.internal:8000
+2025-12-09 05:35:37 55ab2650bbea my_wiki: ChatClient payload: {"messages":[{"role":"user","content":"Tell me which pages are in this wiki"}],"max_tokens":512}
+2025-12-09 05:35:39 55ab2650bbea my_wiki: ChatClient raw response: Array
+(
+    [ok] => 1
+    [code] => 200
+    [body] => Array
+        (
+            [messages] => Array
+                (
+                    [0] => Array
+                        (
+                            [role] => user
+                            [content] => Tell me which pages are in this wiki
+                        )
+
+                    [1] => Array
+                        (
+                            [role] => assistant
+                            [content] => I'm sorry, but I don't have direct access to external databases or wikis to provide a list of pages. However, I can help answer questions or provide information on specific topics if you have any in mind!
+                        )
+
+                )
+
+            [used_tools] => Array
+                (
+                )
+
+        )
+
+)
