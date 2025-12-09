@@ -14,11 +14,54 @@
         $container.html(html);
     }
 
+    function parseMarkdown(text) {
+        // 1. Escape HTML to prevent XSS
+        var clean = $('<div>').text(text).html();
+
+        // Placeholder for code blocks to prevent double parsing
+        var codeBlocks = [];
+
+        // 2. Extract Code blocks: ```code```
+        clean = clean.replace(/```([\s\S]*?)```/g, function (match, code) {
+            // Trim leading/trailing whitespace to prevent extra lines in <pre>
+            code = code.trim();
+            codeBlocks.push('<pre class="mwassistant-code-block"><code>' + code + '</code></pre>');
+            return '___MWASSISTANT_CODE_BLOCK_' + (codeBlocks.length - 1) + '___';
+        });
+
+        // 3. Inline code: `code`
+        clean = clean.replace(/`([^`]+)`/g, function (match, code) {
+            return '<code class="mwassistant-inline-code">' + code + '</code>';
+        });
+
+        // 4. Bold: **text**
+        clean = clean.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+
+        // 5. Markdown links: [text](url)
+        clean = clean.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+
+        // 6. Wiki links: [[Page Title]] or [[Page Title|Label]]
+        clean = clean.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, function (match, page, label) {
+            var url = mw.util.getUrl(page);
+            return '<a href="' + url + '" title="' + page + '">' + (label || page) + '</a>';
+        });
+
+        // 7. Restore code blocks
+        clean = clean.replace(/___MWASSISTANT_CODE_BLOCK_(\d+)___/g, function (match, index) {
+            return codeBlocks[parseInt(index, 10)];
+        });
+
+        return clean;
+    }
+
     function appendMessage(role, content) {
         var $log = $('#mwassistant-chat-log');
         var cls = role === 'user' ? 'mwassistant-msg-user' : 'mwassistant-msg-assistant';
         var $msg = $('<div>').addClass('mwassistant-msg ' + cls);
-        $msg.text(content);
+
+        // Use .html() with the parsed content
+        $msg.html(parseMarkdown(content));
+
         $log.append($msg);
         $log.scrollTop($log[0].scrollHeight);
     }
@@ -37,6 +80,7 @@
             format: 'json',
             // simplest: send only last user message; you can evolve to full history
             messages: JSON.stringify([{ role: 'user', content: text }]),
+            session_id: currentSessionId,
             token: mw.user.tokens.get('csrfToken')
         };
 
@@ -67,9 +111,23 @@
             });
     }
 
+    var currentSessionId = null;
+
+    function generateUUID() {
+        // Simple UUID v4 generator
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+
     $(function () {
         // Module is only loaded on Special:MWAssistant, so we can run immediately.
         console.log('MWAssistant chat module loaded.');
+
+        // Initialize session ID
+        currentSessionId = generateUUID();
+        console.log('Session ID:', currentSessionId);
 
         renderUI();
 

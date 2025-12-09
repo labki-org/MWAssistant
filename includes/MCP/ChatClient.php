@@ -16,15 +16,19 @@ class ChatClient
         $this->client = new HttpClient();
     }
 
-    public function chat(UserIdentity $user, array $messages): array
+    public function chat(UserIdentity $user, array $messages, ?string $sessionId = null): array
     {
-        $roles = $this->getUserRoles($user); // You'll need to implement role extraction or use simple groups
+        $roles = $this->getUserRoles($user);
         $jwt = JWT::createForUser($user, $roles);
 
         $payload = [
             'messages' => $messages,
             'max_tokens' => 512,
         ];
+
+        if ($sessionId) {
+            $payload['session_id'] = $sessionId;
+        }
 
         $secret = \MWAssistant\Config::getJWTSecret();
         \wfDebugLog('mwassistant', 'Config check - Secret length: ' . strlen($secret) . ', Base URL: ' . \MWAssistant\Config::getMCPBaseUrl());

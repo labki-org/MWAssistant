@@ -17,13 +17,14 @@ class ApiMWAssistantChat extends ApiBase
 
         $params = $this->extractRequestParams();
         $messages = json_decode($params['messages'], true);
+        $sessionId = $params['session_id'];
 
         if (!is_array($messages)) {
             $this->dieWithError('apierror-badparams', 'messages');
         }
 
         $client = new ChatClient();
-        $result = $client->chat($user, $messages);
+        $result = $client->chat($user, $messages, $sessionId);
 
         $this->getResult()->addValue(null, $this->getModuleName(), $result);
     }
@@ -34,6 +35,10 @@ class ApiMWAssistantChat extends ApiBase
             'messages' => [
                 self::PARAM_TYPE => 'string',
                 self::PARAM_REQUIRED => true,
+            ],
+            'session_id' => [
+                self::PARAM_TYPE => 'string',
+                self::PARAM_REQUIRED => false,
             ]
         ];
     }

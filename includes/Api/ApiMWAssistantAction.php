@@ -5,6 +5,7 @@ namespace MWAssistant\Api;
 use MediaWiki\Api\ApiBase;
 use MWAssistant\MCP\ActionsClient;
 
+
 class ApiMWAssistantAction extends ApiBase
 {
 
