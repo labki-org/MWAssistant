@@ -1,0 +1,10 @@
+.mwassistant-editor-button {
+    font-weight: bold;
+    margin-left: 10px;
+    padding: 2px 5px;
+    cursor: pointer;
+}
+
+.mwassistant-editor-tools {
+    display: inline-block;
+}

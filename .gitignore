@@ -1,0 +1,19 @@
+# Composer
+/vendor
+composer.lock
+
+# NPM
+/node_modules
+package-lock.json
+
+# IDEs
+.idea
+.vscode
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+.DS_Store
+Thumbs.db
