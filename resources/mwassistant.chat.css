@@ -11,6 +11,37 @@
     background-color: #fff;
 }
 
+.mwassistant-chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.mwassistant-chat-header h2 {
+    margin: 0;
+    font-size: 1.2em;
+    border: none;
+}
+
+.mwassistant-log-notice {
+    font-size: 0.8em;
+    color: #555;
+    background: #e0e0e0;
+    padding: 3px 8px;
+    border-radius: 4px;
+    text-decoration: none;
+    transition: background 0.2s;
+}
+
+.mwassistant-log-notice:hover {
+    background: #d0d0d0;
+    color: #000;
+    text-decoration: none;
+}
+
 .mwassistant-chat-log {
     flex: 1;
     overflow-y: auto;

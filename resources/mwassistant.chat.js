@@ -5,6 +5,10 @@
         var $container = $('#mwassistant-chat-container');
         var html =
             '<div class="mwassistant-chat">' +
+            '<div class="mwassistant-chat-header">' +
+            '<h2>MWAssistant</h2>' +
+            '<span class="mwassistant-log-notice" id="mwassistant-chat-status" title="Session: ' + currentSessionId + '">Chat is being logged</span>' +
+            '</div>' +
             '<div class="mwassistant-chat-log" id="mwassistant-chat-log"></div>' +
             '<div class="mwassistant-chat-input">' +
             '<textarea id="mwassistant-chat-input-text" rows="3"></textarea>' +
@@ -89,6 +93,16 @@
         api.post(payload)
             .done(function (data) {
                 var res = data['mwassistant-chat'];
+
+                if (res && res.log_info && res.log_info.url) {
+                    var $status = $('#mwassistant-chat-status');
+                    if ($status.is('span')) {
+                        $status.replaceWith('<a href="' + res.log_info.url + '" target="_blank" class="mwassistant-log-notice" id="mwassistant-chat-status">Logs auto-saved</a>');
+                    } else {
+                        $status.attr('href', res.log_info.url);
+                    }
+                }
+
                 if (res && res.messages) {
                     // assume last message is assistant
                     var last = res.messages[res.messages.length - 1];
@@ -123,11 +137,8 @@
 
     $(function () {
         // Module is only loaded on Special:MWAssistant, so we can run immediately.
-        console.log('MWAssistant chat module loaded.');
-
         // Initialize session ID
         currentSessionId = generateUUID();
-        console.log('Session ID:', currentSessionId);
 
         renderUI();
 
