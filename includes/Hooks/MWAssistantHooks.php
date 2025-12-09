@@ -14,6 +14,9 @@ class MWAssistantHooks
             return;
         }
 
+        // Always load the global module for registered users (search bar integration)
+        $out->addModules(['ext.mwassistant.global']);
+
         $title = $out->getTitle();
         // Check if we are on an edit page.
         // 'action=edit' or 'action=submit' (often 'submit' when previewing).

@@ -142,6 +142,14 @@
 
         renderUI();
 
+        // Check for 'q' parameter in URL to pre-fill the chat
+        var preQuery = mw.util.getParamValue('q');
+        if (preQuery) {
+            $('#mwassistant-chat-input-text').val(preQuery);
+            // Optional: focus the input
+            // $('#mwassistant-chat-input-text').focus();
+        }
+
         $('#mwassistant-chat-send').on('click', sendMessage);
         $('#mwassistant-chat-input-text').on('keypress', function (e) {
             if (e.which === 13 && !e.shiftKey) {

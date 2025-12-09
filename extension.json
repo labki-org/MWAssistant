@@ -55,6 +55,24 @@
             ],
             "localBasePath": "",
             "remoteExtPath": "MWAssistant"
+        },
+        "ext.mwassistant.global": {
+            "scripts": [
+                "resources/mwassistant.global.js"
+            ],
+            "styles": [
+                "resources/mwassistant.global.css"
+            ],
+            "dependencies": [
+                "mediawiki.util",
+                "jquery"
+            ],
+            "targets": [
+                "desktop",
+                "mobile"
+            ],
+            "localBasePath": "",
+            "remoteExtPath": "MWAssistant"
         }
     },
     "SpecialPages": {
