@@ -20,7 +20,8 @@ class ActionsClient
     public function editPage(UserIdentity $user, string $title, string $content, string $summary = ''): array
     {
         $roles = $this->getUserRoles($user);
-        $jwt = JWT::createForUser($user, $roles);
+        $jwt = JWT::createMWToMCPToken($user, $roles, ['mw_action']);
+
 
         $payload = [
             'title' => $title,

@@ -2,18 +2,17 @@
 
 namespace MWAssistant\Api;
 
-use MediaWiki\Api\ApiBase;
+use MWAssistant\Api\ApiMWAssistantBase;
 use MWAssistant\MCP\SearchClient;
 
-class ApiMWAssistantSearch extends ApiBase
+class ApiMWAssistantSearch extends ApiMWAssistantBase
 {
 
     public function execute()
     {
+        $this->checkAccess(['search']);
+
         $user = $this->getUser();
-        if (!$user->isAllowed('mwassistant-use')) {
-            $this->dieWithError('apierror-permissiondenied', 'permissiondenied');
-        }
 
         $params = $this->extractRequestParams();
         $query = $params['query'];

@@ -27,7 +27,8 @@ MW_BRANCH=REL1_44
 MW_PORT=8890
 MW_ADMIN_USER=Admin
 MW_ADMIN_PASS=dockerpass
-MW_JWT_SECRET=some-long-random-secret
+MW_JWT_MW_TO_MCP_SECRET=8n7yHEg3UttL-lEOKASg-dS_xkU0gTuqGLn7zvhg4Uh-x52rtA0Zh13WJmGd8ojDjxXJB7qR9U
+MW_JWT_MCP_TO_MW_SECRET=rgz5g_b6NPUlBUeZlir9XWNvnEcuOSq8bA1w2N6DUvCJROKIJKXRkyKdyPbKRio-3yh4RsHnvYQgApyYp7HEAs1Thc32wK
 
 CONTAINER_WIKI="/var/www/html/w"
 CONTAINER_LOG_DIR="/var/log/mwassistant"
@@ -170,7 +171,8 @@ docker compose exec -T mediawiki bash -lc "
     echo 'wfLoadExtension(\"MWAssistant\");'
     echo '\$wgDebugLogGroups[\"mwassistant\"] = \"$CONTAINER_LOG_FILE\";'
     echo '\$wgMWAssistantMCPBaseUrl = \"http://host.docker.internal:8000\";'
-    echo '\$wgMWAssistantJWTSecret = \"$MW_JWT_SECRET\";'
+    echo '\$wgMWAssistantJWTMWToMCPSecret = \"$MW_JWT_MW_TO_MCP_SECRET\";'
+    echo '\$wgMWAssistantJWTMCPToMWSecret = \"$MW_JWT_MCP_TO_MW_SECRET\";'
     echo '\$wgMWAssistantEnabled = true;'
     echo '\$wgGroupPermissions[\"user\"][\"mwassistant-use\"] = true;'
   } >> $CONTAINER_WIKI/LocalSettings.php

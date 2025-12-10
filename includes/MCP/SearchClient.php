@@ -20,7 +20,8 @@ class SearchClient
     public function search(UserIdentity $user, string $query): array
     {
         $roles = $this->getUserRoles($user);
-        $jwt = JWT::createForUser($user, $roles);
+        $jwt = JWT::createMWToMCPToken($user, $roles, ['search']);
+
 
         $payload = [
             'query' => $query,

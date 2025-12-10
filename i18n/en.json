@@ -6,5 +6,8 @@
     "mwassistant": "MWAssistant",
     "mwassistant-chat-title": "AI Assistant",
     "right-mwassistant-use": "Use MWAssistant AI features",
-    "action-mwassistant-use": "use MWAssistant AI features"
+    "action-mwassistant-use": "use MWAssistant AI features",
+    "apierror-mwassistant-missing-jwt": "Missing or invalid Authorization header. JWT required for MCP authentication.",
+    "apierror-mwassistant-invalid-jwt": "JWT verification failed. Token may be expired, have an invalid signature, or have insufficient scope.",
+    "apierror-mwassistant-config-invalid": "MWAssistant JWT secrets not configured. Contact system administrator."
 }

@@ -13,6 +13,7 @@ class ApiMWAssistantSaveLog extends ApiBase
     public function execute()
     {
         $user = $this->getUser();
+
         if (!$user->isAllowed('mwassistant-use')) {
             $this->dieWithError('apierror-permissiondenied', 'permissiondenied');
         }

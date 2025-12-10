@@ -2,18 +2,18 @@
 
 namespace MWAssistant\Api;
 
-use MediaWiki\Api\ApiBase;
+use MWAssistant\Api\ApiMWAssistantBase;
 use MWAssistant\MCP\SMWClient;
 
-class ApiMWAssistantSMW extends ApiBase
+class ApiMWAssistantSMW extends ApiMWAssistantBase
 {
 
     public function execute()
     {
+        $this->checkAccess(['smw_query']);
+
         $user = $this->getUser();
-        if (!$user->isAllowed('mwassistant-use')) {
-            $this->dieWithError('apierror-permissiondenied', 'permissiondenied');
-        }
+
 
         $params = $this->extractRequestParams();
         $query = $params['query'];

@@ -2,19 +2,19 @@
 
 namespace MWAssistant\Api;
 
-use MediaWiki\Api\ApiBase;
 use MWAssistant\MCP\ActionsClient;
 
 
-class ApiMWAssistantAction extends ApiBase
+class ApiMWAssistantAction extends ApiMWAssistantBase
 {
 
     public function execute()
     {
+        // Step 1: Verify incoming JWT from MCP and MediaWiki user permission
+        $this->checkAccess(['mw_action']);
+
         $user = $this->getUser();
-        if (!$user->isAllowed('mwassistant-use')) {
-            $this->dieWithError('apierror-permissiondenied', 'permissiondenied');
-        }
+
 
         $params = $this->extractRequestParams();
         $title = $params['title'];

@@ -23,7 +23,12 @@ MWAssistant is a MediaWiki extension that integrates with an MCP (Model Context 
 
    // Configuration
    $wgMWAssistantMCPBaseUrl = 'http://mw-mcp-server:8000'; // URL of your MCP server
-   $wgMWAssistantJWTSecret = 'your-secret-key'; // Must match the MCP server's secret
+   
+   // JWT Authentication (Use separate secrets for bidirectional security)
+   // It is recommended to load these from environment variables
+   $wgMWAssistantJWTMWToMCPSecret = getenv('JWT_MW_TO_MCP_SECRET');
+   $wgMWAssistantJWTMCPToMWSecret = getenv('JWT_MCP_TO_MW_SECRET');
+   
    $wgMWAssistantEnabled = true;
 
    // Permissions
@@ -36,7 +41,8 @@ MWAssistant is a MediaWiki extension that integrates with an MCP (Model Context 
 ## Configuration Options
 
 - `MWAssistantMCPBaseUrl`: The base URL of the MCP server HTTP interface (e.g. `http://localhost:8000`).
-- `MWAssistantJWTSecret`: Shared secret for signing JWTs.
+- `MWAssistantJWTMWToMCPSecret`: Secret used to sign tokens sent from MediaWiki to MCP Server.
+- `MWAssistantJWTMCPToMWSecret`: Secret used to verify tokens received from MCP Server.
 - `MWAssistantEnabled`: Master switch to enable/disable the extension features.
 
 ## Usage

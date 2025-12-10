@@ -20,7 +20,8 @@ class SMWClient
     public function query(UserIdentity $user, string $description): array
     {
         $roles = $this->getUserRoles($user);
-        $jwt = JWT::createForUser($user, $roles);
+        $jwt = JWT::createMWToMCPToken($user, $roles, ['smw_query']);
+
 
         $payload = [
             'query' => $description, // The user prompt describing the query

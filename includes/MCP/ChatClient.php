@@ -19,7 +19,8 @@ class ChatClient
     public function chat(UserIdentity $user, array $messages, ?string $sessionId = null): array
     {
         $roles = $this->getUserRoles($user);
-        $jwt = JWT::createForUser($user, $roles);
+        $jwt = JWT::createMWToMCPToken($user, $roles, ['chat_completion']);
+
 
         $payload = [
             'messages' => $messages,
@@ -30,12 +31,11 @@ class ChatClient
             $payload['session_id'] = $sessionId;
         }
 
-        $secret = \MWAssistant\Config::getJWTSecret();
-        \wfDebugLog('mwassistant', 'Config check - Secret length: ' . strlen($secret) . ', Base URL: ' . \MWAssistant\Config::getMCPBaseUrl());
 
         \wfDebugLog('mwassistant', 'ChatClient payload: ' . json_encode($payload));
         $resp = $this->client->postJson('/chat/', $payload, $jwt);
         \wfDebugLog('mwassistant', 'ChatClient raw response: ' . print_r($resp, true));
+
 
         if (!$resp['ok']) {
             return [

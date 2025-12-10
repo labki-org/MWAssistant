@@ -8,16 +8,14 @@ use MediaWiki\MediaWikiServices;
 use MediaWiki\Title\Title;
 use MediaWiki\Revision\SlotRecord;
 use MediaWiki\CommentFormatter\CommentParser;
+use MWAssistant\Api\ApiMWAssistantBase;
 
-class ApiMWAssistantChat extends ApiBase
+class ApiMWAssistantChat extends ApiMWAssistantBase
 {
 
     public function execute()
     {
-        $user = $this->getUser();
-        if (!$user->isAllowed('mwassistant-use')) {
-            $this->dieWithError('apierror-permissiondenied', 'permissiondenied');
-        }
+        $this->checkAccess(['chat_completion']);
 
         $params = $this->extractRequestParams();
         $messages = json_decode($params['messages'], true);
@@ -27,6 +25,7 @@ class ApiMWAssistantChat extends ApiBase
             $this->dieWithError('apierror-badparams', 'messages');
         }
 
+        $user = $this->getUser();
         $client = new ChatClient();
         $response = $client->chat($user, $messages, $sessionId);
 

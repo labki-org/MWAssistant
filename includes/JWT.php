@@ -7,22 +7,33 @@ use MediaWiki\User\UserIdentity;
 class JWT
 {
 
-    public static function createForUser(UserIdentity $user, array $roles = []): string
-    {
-        $secret = Config::getJWTSecret();
+    /**
+     * Create a short-lived JWT for MW → MCP authentication
+     * 
+     * @param UserIdentity $user The MediaWiki user making the request
+     * @param array $roles MediaWiki user groups
+     * @param array $scopes Request-specific scopes (e.g., ['chat_completion'])
+     * @return string JWT token
+     */
+    public static function createMWToMCPToken(
+        UserIdentity $user,
+        array $roles = [],
+        array $scopes = []
+    ): string {
+        $secret = Config::getJWTMWToMCPSecret();
         $now = time();
 
         $header = json_encode(['typ' => 'JWT', 'alg' => 'HS256']);
         $payload = json_encode([
-            'sub' => $user->getName(),
-            'roles' => $roles,
-            'client_id' => 'mw_extension',
+            'iss' => 'MWAssistant',
+            'aud' => 'mw-mcp-server',
             'iat' => $now,
-            'exp' => $now + 3600 // 1 hour expiration
+            'exp' => $now + Config::getJWTTTL(),
+            'user' => $user->getName(),
+            'roles' => $roles,
+            'scope' => $scopes
         ]);
 
-        \wfDebugLog('mwassistant', 'JWT Data: secret len=' . strlen($secret) . ', algo=HS256, payload=' . $payload);
-        \wfDebugLog('mwassistant', 'JWT Data: secret=' . $secret);
         $base64UrlHeader = self::base64UrlEncode($header);
         $base64UrlPayload = self::base64UrlEncode($payload);
 

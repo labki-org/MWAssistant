@@ -97,11 +97,17 @@
         "MWAssistantMCPBaseUrl": {
             "value": "http://localhost:8000"
         },
-        "MWAssistantJWTSecret": {
+        "MWAssistantJWTMWToMCPSecret": {
+            "value": ""
+        },
+        "MWAssistantJWTMCPToMWSecret": {
             "value": ""
         },
         "MWAssistantEnabled": {
             "value": true
+        },
+        "MWAssistantJWTTTL": {
+            "value": 30
         }
     },
     "manifest_version": 2

@@ -14,11 +14,34 @@ class Config
             ->get('MWAssistantMCPBaseUrl');
     }
 
-    public static function getJWTSecret(): string
+    public static function getJWTMWToMCPSecret(): string
     {
-        return MediaWikiServices::getInstance()
+        $secret = MediaWikiServices::getInstance()
             ->getMainConfig()
-            ->get('MWAssistantJWTSecret');
+            ->get('MWAssistantJWTMWToMCPSecret');
+
+        if (empty($secret)) {
+            throw new \RuntimeException(
+                'MWAssistant: MWAssistantJWTMWToMCPSecret must be configured in LocalSettings.php'
+            );
+        }
+
+        return $secret;
+    }
+
+    public static function getJWTMCPToMWSecret(): string
+    {
+        $secret = MediaWikiServices::getInstance()
+            ->getMainConfig()
+            ->get('MWAssistantJWTMCPToMWSecret');
+
+        if (empty($secret)) {
+            throw new \RuntimeException(
+                'MWAssistant: MWAssistantJWTMCPToMWSecret must be configured in LocalSettings.php'
+            );
+        }
+
+        return $secret;
     }
 
     public static function isEnabled(): bool
@@ -26,5 +49,12 @@ class Config
         return (bool) MediaWikiServices::getInstance()
             ->getMainConfig()
             ->get('MWAssistantEnabled');
+    }
+
+    public static function getJWTTTL(): int
+    {
+        return (int) MediaWikiServices::getInstance()
+            ->getMainConfig()
+            ->get('MWAssistantJWTTTL');
     }
 }
