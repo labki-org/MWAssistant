@@ -73,13 +73,27 @@
             ],
             "localBasePath": "",
             "remoteExtPath": "MWAssistant"
+        },
+        "ext.mwassistant.embeddings": {
+            "styles": [
+                "resources/mwassistant.embeddings.css"
+            ],
+            "targets": [
+                "desktop",
+                "mobile"
+            ],
+            "localBasePath": "",
+            "remoteExtPath": "MWAssistant"
         }
     },
     "SpecialPages": {
-        "MWAssistant": "MWAssistant\\Special\\SpecialMWAssistant"
+        "MWAssistant": "MWAssistant\\Special\\SpecialMWAssistant",
+        "MWAssistantEmbeddings": "MWAssistant\\Special\\SpecialMWAssistantEmbeddings"
     },
     "Hooks": {
-        "BeforePageDisplay": "MWAssistant\\Hooks\\MWAssistantHooks::onBeforePageDisplay"
+        "BeforePageDisplay": "MWAssistant\\Hooks\\MWAssistantHooks::onBeforePageDisplay",
+        "PageSaveComplete": "MWAssistant\\Hooks\\AutoEmbeddingHooks::onPageSaveComplete",
+        "PageDeleteComplete": "MWAssistant\\Hooks\\AutoEmbeddingHooks::onPageDeleteComplete"
     },
     "AvailableRights": [
         "mwassistant-use"
@@ -105,6 +119,9 @@
         },
         "MWAssistantEnabled": {
             "value": true
+        },
+        "MWAssistantAutoEmbed": {
+            "value": false
         },
         "MWAssistantJWTTTL": {
             "value": 30

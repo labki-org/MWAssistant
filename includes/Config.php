@@ -57,4 +57,11 @@ class Config
             ->getMainConfig()
             ->get('MWAssistantJWTTTL');
     }
+
+    public static function isAutoEmbedEnabled(): bool
+    {
+        return (bool) MediaWikiServices::getInstance()
+            ->getMainConfig()
+            ->get('MWAssistantAutoEmbed');
+    }
 }

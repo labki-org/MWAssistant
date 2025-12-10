@@ -1,0 +1,171 @@
+/* Modern Embeddings Dashboard */
+
+.mwassistant-dashboard {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin-top: 20px;
+    max-width: 1200px;
+}
+
+/* Stats Cards Container */
+.mwassistant-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+/* Stat Card */
+.mwassistant-stat-card {
+    background: #fff;
+    border: 1px solid #c8ccd1;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.mwassistant-stat-label {
+    font-size: 0.85em;
+    color: #54595d;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 5px;
+    font-weight: 600;
+}
+
+.mwassistant-stat-value {
+    font-size: 2em;
+    font-weight: 700;
+    color: #202122;
+    line-height: 1.2;
+}
+
+/* Section Headers */
+.mwassistant-section-header {
+    border-bottom: 2px solid #eaecf0;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    font-weight: normal;
+    color: #202122;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+/* Styled Table */
+.mwassistant-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid #c8ccd1;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 30px;
+    background: #fff;
+}
+
+.mwassistant-table th {
+    background: #f8f9fa;
+    color: #202122;
+    font-weight: 600;
+    text-align: left;
+    padding: 3px 12px;
+    border-bottom: 1px solid #c8ccd1;
+}
+
+.mwassistant-table td {
+    padding: 3px 12px;
+    border-bottom: 1px solid #eaecf0;
+    vertical-align: middle;
+}
+
+.mwassistant-table tr:last-child td {
+    border-bottom: none;
+}
+
+.mwassistant-table tr:hover {
+    background-color: #f8f9fa;
+}
+
+/* Status Pills */
+.mwassistant-status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.9em;
+    font-weight: 500;
+    line-height: 1;
+}
+
+.mwassistant-status-pill.synced {
+    background-color: #dff0d8;
+    color: #2b7d2b;
+}
+
+.mwassistant-status-pill.out-of-date {
+    background-color: #fcf8e3;
+    color: #8a6d3b;
+}
+
+.mwassistant-status-pill.not-embedded {
+    background-color: #f2dede;
+    color: #a94442;
+}
+
+.mwassistant-status-pill .count {
+    margin-left: 6px;
+    font-weight: 700;
+}
+
+/* Action Button in Table */
+.mwassistant-action-btn {
+    appearance: none;
+    background-color: #36c;
+    border: 1px solid #36c;
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9em;
+    transition: background-color 0.1s;
+}
+
+.mwassistant-action-btn:hover {
+    background-color: #447ff5;
+    border-color: #447ff5;
+}
+
+.mwassistant-action-btn:active {
+    background-color: #2a4b8d;
+    border-color: #2a4b8d;
+}
+
+/* Single Page Update Form */
+.mwassistant-single-update-card {
+    background: #f8f9fa;
+    border: 1px solid #c8ccd1;
+    border-radius: 8px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mwassistant-input {
+    padding: 8px 12px;
+    border: 1px solid #72777d;
+    border-radius: 4px;
+    font-size: 1em;
+    flex-grow: 1;
+    max-width: 400px;
+}
+
+.mwassistant-input:focus {
+    border-color: #36c;
+    box-shadow: inset 0 0 0 1px #36c;
+    outline: none;
+}

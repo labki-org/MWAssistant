@@ -11,4 +11,5 @@ $specialPageAliases = [];
 /** English (English) */
 $specialPageAliases['en'] = [
     'MWAssistant' => ['MWAssistant', 'AI Assistant', 'AIAssistant'],
+    'MWAssistantEmbeddings' => ['MWAssistantEmbeddings', 'EmbeddingsStatus'],
 ];
