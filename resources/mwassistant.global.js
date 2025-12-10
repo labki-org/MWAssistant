@@ -50,6 +50,7 @@
 
             var $assistantBtn = $('<button>')
                 .addClass(buttonId + ' mw-ui-button mw-ui-quiet')
+                .attr('type', 'button') // Prevent submit behavior
                 .text('Ask Assistant')
                 .attr('title', 'Ask the AI Assistant about this query')
                 .hide()
