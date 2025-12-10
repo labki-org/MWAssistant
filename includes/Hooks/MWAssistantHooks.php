@@ -20,8 +20,10 @@ class MWAssistantHooks
         $title = $out->getTitle();
         // Check if we are on an edit page.
         // 'action=edit' or 'action=submit' (often 'submit' when previewing).
+        // Using Action::getActionName is better but direct request check works for 'edit' param typically.
+        // We do NOT check isContentPage() because we want this on User pages, Templates, etc.
         $action = $out->getRequest()->getVal('action');
-        if ($title && $title->isContentPage() && ($action === 'edit' || $action === 'submit')) {
+        if ($title && ($action === 'edit' || $action === 'submit')) {
             $out->addModules(['ext.mwassistant.editor']);
         }
     }

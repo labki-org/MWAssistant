@@ -48,7 +48,7 @@
             ],
             "dependencies": [
                 "mediawiki.api",
-                "mediawiki.toolbar"
+                "ext.mwassistant.chat"
             ],
             "targets": [
                 "desktop"

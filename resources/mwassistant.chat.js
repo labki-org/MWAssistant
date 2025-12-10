@@ -1,35 +1,63 @@
 (function (mw, $) {
     var api = new mw.Api();
 
-    function renderUI() {
-        var $container = $('#mwassistant-chat-container');
+    /**
+     * MWAssistantChat Class
+     * @param {Object} config
+     * @param {jQuery} config.$container Container element
+     * @param {string} [config.sessionId]
+     * @param {Array} [config.systemPrompt] Array of message objects
+     * @param {Function} [config.getExtraContext] Function returning string/obj to append to user message (invisible to user, system instruction)
+     */
+    function MWAssistantChat(config) {
+        this.$container = config.$container;
+        this.sessionId = config.sessionId || this.generateUUID();
+        this.systemPrompt = config.systemPrompt || [];
+        this.getExtraContext = config.getExtraContext || function () { return null; };
+
+        this.renderUI();
+        this.bindEvents();
+    }
+
+    MWAssistantChat.prototype.generateUUID = function () {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    };
+
+    MWAssistantChat.prototype.renderUI = function () {
         var html =
             '<div class="mwassistant-chat">' +
             '<div class="mwassistant-chat-header">' +
             '<h2>MWAssistant</h2>' +
-            '<span class="mwassistant-log-notice" id="mwassistant-chat-status" title="Session: ' + currentSessionId + '">Chat is being logged</span>' +
+            '<span class="mwassistant-log-notice" id="mwassistant-chat-status" title="Session: ' + this.sessionId + '">Chat is being logged</span>' +
             '</div>' +
             '<div class="mwassistant-chat-log" id="mwassistant-chat-log"></div>' +
             '<div class="mwassistant-chat-input">' +
-            '<textarea id="mwassistant-chat-input-text" rows="3"></textarea>' +
+            '<textarea id="mwassistant-chat-input-text" rows="3" placeholder="Ask for help..."></textarea>' +
             '<button id="mwassistant-chat-send">Send</button>' +
             '</div>' +
             '</div>';
-        $container.html(html);
-    }
+        this.$container.html(html);
+    };
 
-    function parseMarkdown(text) {
+    MWAssistantChat.prototype.parseMarkdown = function (text) {
         // 1. Escape HTML to prevent XSS
         var clean = $('<div>').text(text).html();
 
-        // Placeholder for code blocks to prevent double parsing
+        // Placeholder for code blocks
         var codeBlocks = [];
 
         // 2. Extract Code blocks: ```code```
         clean = clean.replace(/```([\s\S]*?)```/g, function (match, code) {
-            // Trim leading/trailing whitespace to prevent extra lines in <pre>
             code = code.trim();
-            codeBlocks.push('<pre class="mwassistant-code-block"><code>' + code + '</code></pre>');
+            // Wrap in a relative container with a copy button
+            var html = '<div class="mwassistant-code-wrapper">' +
+                '<button class="mwassistant-copy-btn" title="Copy code">Copy</button>' +
+                '<pre class="mwassistant-code-block"><code>' + code + '</code></pre>' +
+                '</div>';
+            codeBlocks.push(html);
             return '___MWASSISTANT_CODE_BLOCK_' + (codeBlocks.length - 1) + '___';
         });
 
@@ -56,46 +84,99 @@
         });
 
         return clean;
-    }
+    };
 
-    function appendMessage(role, content) {
-        var $log = $('#mwassistant-chat-log');
+    MWAssistantChat.prototype.appendMessage = function (role, content) {
+        var $log = this.$container.find('#mwassistant-chat-log');
         var cls = role === 'user' ? 'mwassistant-msg-user' : 'mwassistant-msg-assistant';
         var $msg = $('<div>').addClass('mwassistant-msg ' + cls);
-
-        // Use .html() with the parsed content
-        $msg.html(parseMarkdown(content));
-
+        $msg.html(this.parseMarkdown(content));
         $log.append($msg);
         $log.scrollTop($log[0].scrollHeight);
-    }
+    };
 
-    function sendMessage() {
-        var text = $('#mwassistant-chat-input-text').val().trim();
-        if (!text) {
-            return;
+    MWAssistantChat.prototype.bindEvents = function () {
+        var self = this;
+        this.$container.find('#mwassistant-chat-send').on('click', function () { self.sendMessage(); });
+        this.$container.find('#mwassistant-chat-input-text').on('keypress', function (e) {
+            if (e.which === 13 && !e.shiftKey) {
+                e.preventDefault();
+                self.sendMessage();
+            }
+        });
+
+        // Use delegation for dynamic copy buttons
+        this.$container.on('click', '.mwassistant-copy-btn', function () {
+            var $btn = $(this);
+            var code = $btn.siblings('pre').text(); // Get raw text from pre
+
+            // Clipboard API or fallback
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(code).then(function () {
+                    var original = $btn.text();
+                    $btn.text('Copied!');
+                    setTimeout(function () { $btn.text(original); }, 2000);
+                }).catch(function (err) {
+                    console.error('Failed to copy: ', err);
+                    $btn.text('Error');
+                });
+            } else {
+                // Fallback for older browsers / insecure context
+                var textArea = document.createElement("textarea");
+                textArea.value = code;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    $btn.text('Copied!');
+                } catch (err) {
+                    $btn.text('Error');
+                }
+                document.body.removeChild(textArea);
+                setTimeout(function () { $btn.text('Copy'); }, 2000);
+            }
+        });
+    };
+
+    MWAssistantChat.prototype.sendMessage = function () {
+        var $input = this.$container.find('#mwassistant-chat-input-text');
+        var text = $input.val().trim();
+        if (!text) return;
+
+        $input.val('');
+        this.appendMessage('user', text);
+
+        var messages = [];
+
+        if (this.systemPrompt && this.systemPrompt.length > 0) {
+            messages = messages.concat(this.systemPrompt);
+            this.systemPrompt = [];
         }
 
-        $('#mwassistant-chat-input-text').val('');
-        appendMessage('user', text);
+        var extraContext = this.getExtraContext();
+        if (extraContext) {
+            messages.push({ role: 'system', content: 'Context:\n' + extraContext });
+        }
+
+        messages.push({ role: 'user', content: text });
 
         var payload = {
             action: 'mwassistant-chat',
             format: 'json',
-            // simplest: send only last user message; you can evolve to full history
-            messages: JSON.stringify([{ role: 'user', content: text }]),
-            session_id: currentSessionId,
+            messages: JSON.stringify(messages),
+            session_id: this.sessionId,
             token: mw.user.tokens.get('csrfToken')
         };
 
-        $('#mwassistant-chat-send').prop('disabled', true);
+        var $btn = this.$container.find('#mwassistant-chat-send');
+        $btn.prop('disabled', true);
 
+        var self = this;
         api.post(payload)
             .done(function (data) {
                 var res = data['mwassistant-chat'];
-
                 if (res && res.log_info && res.log_info.url) {
-                    var $status = $('#mwassistant-chat-status');
+                    var $status = self.$container.find('#mwassistant-chat-status');
                     if ($status.is('span')) {
                         $status.replaceWith('<a href="' + res.log_info.url + '" target="_blank" class="mwassistant-log-notice" id="mwassistant-chat-status">Logs auto-saved</a>');
                     } else {
@@ -104,13 +185,12 @@
                 }
 
                 if (res && res.messages) {
-                    // assume last message is assistant
                     var last = res.messages[res.messages.length - 1];
-                    appendMessage(last.role, last.content);
+                    self.appendMessage(last.role, last.content);
                 } else if (res && res.error) {
-                    appendMessage('assistant', 'Error: ' + res.message);
+                    self.appendMessage('assistant', 'Error: ' + res.message);
                 } else {
-                    appendMessage('assistant', 'Error: malformed response.');
+                    self.appendMessage('assistant', 'Error: malformed response.');
                 }
             })
             .fail(function (code, result) {
@@ -118,45 +198,31 @@
                 if (result && result.error && result.error.info) {
                     msg += ' ' + result.error.info;
                 }
-                appendMessage('assistant', msg);
+                self.appendMessage('assistant', msg);
             })
             .always(function () {
-                $('#mwassistant-chat-send').prop('disabled', false);
+                $btn.prop('disabled', false);
             });
-    }
+    };
 
-    var currentSessionId = null;
+    // Expose globally
+    mw.mwAssistant = mw.mwAssistant || {};
+    mw.mwAssistant.Chat = MWAssistantChat;
 
-    function generateUUID() {
-        // Simple UUID v4 generator
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-        });
-    }
-
+    // Auto-init for Special Page
     $(function () {
-        // Module is only loaded on Special:MWAssistant, so we can run immediately.
-        // Initialize session ID
-        currentSessionId = generateUUID();
+        if ($('#mwassistant-chat-container').length) {
+            new MWAssistantChat({
+                $container: $('#mwassistant-chat-container')
+            });
 
-        renderUI();
-
-        // Check for 'q' parameter in URL to pre-fill the chat
-        var preQuery = mw.util.getParamValue('q');
-        if (preQuery) {
-            $('#mwassistant-chat-input-text').val(preQuery);
-            // Optional: focus the input
-            // $('#mwassistant-chat-input-text').focus();
-        }
-
-        $('#mwassistant-chat-send').on('click', sendMessage);
-        $('#mwassistant-chat-input-text').on('keypress', function (e) {
-            if (e.which === 13 && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
+            // Check for 'q' parameter in URL to pre-fill the chat
+            var preQuery = mw.util.getParamValue('q');
+            if (preQuery) {
+                var $input = $('#mwassistant-chat-input-text');
+                $input.val(preQuery);
             }
-        });
+        }
     });
 
 }(mediaWiki, jQuery));
