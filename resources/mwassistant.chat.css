@@ -125,18 +125,45 @@
 }
 
 /* Code Block Styling */
+.mwassistant-code-wrapper {
+    position: relative;
+    margin: 8px 0;
+}
+
+.mwassistant-copy-btn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: #e1e4e8;
+    color: #24292e;
+    border: 1px solid #d1d5da;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s, background 0.2s;
+    z-index: 10;
+}
+
+.mwassistant-copy-btn:hover {
+    opacity: 1;
+    background-color: #d1d5da;
+}
+
 .mwassistant-code-block {
     background-color: #282c34;
     color: #abb2bf;
-    padding: 12px;
+    padding: 25px 12px 12px 12px;
+    /* Extra top padding for button space */
     border-radius: 6px;
     border: none;
-    /* Ensure no theme borders */
     font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
     font-size: 13px;
     line-height: 1.4;
     overflow-x: auto;
-    margin: 8px 0;
+    margin: 0;
+    /* Wrapper handles margin */
     white-space: pre;
 }
 
@@ -158,5 +185,4 @@
 
 .mwassistant-msg-assistant .mwassistant-code-block {
     border: none;
-    /* Override potential parent borders */
 }
