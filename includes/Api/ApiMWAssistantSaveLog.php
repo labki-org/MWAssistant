@@ -65,6 +65,10 @@ class ApiMWAssistantSaveLog extends ApiBase
             );
         }
 
+        // Escape Category and Property links to prevent categorization/assignment
+        // e.g. [[Category:Foo]] -> [[:Category:Foo]]
+        $content = preg_replace('/\[\[\s*(Category|Property):/i', '[[:$1:', $content);
+
         // -------------------------------------------------------------
         // Build safe page title
         // -------------------------------------------------------------

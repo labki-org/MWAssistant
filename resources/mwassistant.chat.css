@@ -186,3 +186,63 @@
 .mwassistant-msg-assistant .mwassistant-code-block {
     border: none;
 }
+
+/* Tool Usage Messages */
+.mwassistant-msg-tool {
+    background-color: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 15px;
+    font-size: 0.9em;
+    color: #333;
+    max-width: 90%;
+    align-self: flex-start;
+}
+
+.mwassistant-tool-header {
+    font-weight: bold;
+    color: #555;
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    font-size: 0.8em;
+    letter-spacing: 0.5px;
+}
+
+.mwassistant-tool-query {
+    margin-bottom: 8px;
+    background: #fff;
+    padding: 6px;
+    border-radius: 4px;
+    border: 1px solid #eee;
+}
+
+.mwassistant-tool-query code {
+    color: #d63384;
+    /* Highlight color for query */
+    word-break: break-all;
+}
+
+.mwassistant-tool-result {
+    border-top: 1px solid #eee;
+    padding-top: 5px;
+}
+
+.mwassistant-tool-result-header {
+    font-weight: bold;
+    font-size: 0.8em;
+    color: #777;
+    margin-bottom: 2px;
+}
+
+.mwassistant-tool-result pre {
+    background: #2d2d2d;
+    color: #fff;
+    padding: 8px;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin: 0;
+    font-size: 0.85em;
+    max-height: 200px;
+    /* Prevent huge results from taking over */
+}

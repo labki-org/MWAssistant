@@ -48,10 +48,10 @@ class ApiMWAssistantSMW extends ApiMWAssistantBase
         $user = $this->getUser();
 
         // -------------------------------------------------------------
-        // Execute query via MCP backend
+        // Execute query via Parser Evaluator
         // -------------------------------------------------------------
-        $client = new SMWClient();
-        $result = $client->query($user, $query);
+        $evaluator = new \MWAssistant\SMW\SMWParserEvaluator();
+        $output = $evaluator->evaluate($user, $query);
 
         // -------------------------------------------------------------
         // Output result
@@ -59,7 +59,7 @@ class ApiMWAssistantSMW extends ApiMWAssistantBase
         $this->getResult()->addValue(
             null,
             $this->getModuleName(),
-            $result
+            ['result' => $output]
         );
     }
 
@@ -77,12 +77,13 @@ class ApiMWAssistantSMW extends ApiMWAssistantBase
     }
 
     /**
-     * SMW queries require a CSRF token when invoked from the UI.
+     * SMW queries from MCP are authenticated via JWT, so we do not
+     * require a CSRF token (which is for browser sessions).
      *
-     * @return string
+     * @return bool
      */
-    public function needsToken(): string
+    public function needsToken(): bool
     {
-        return 'csrf';
+        return false;
     }
 }

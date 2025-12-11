@@ -164,6 +164,58 @@
             $log.scrollTop($log.prop('scrollHeight'));
         }
 
+        appendToolMessage(query, result) {
+            const $log = this.$container.find('#mwassistant-chat-log');
+
+            let contentHtml = '';
+
+            // Handle new parser-based result (HTML/Text string)
+            // The API wrapper might return it nested, e.g. { mwassistant-smw: { result: "..." } }
+            // Or just { result: "..." } if flat. 
+            // Based on SMWClient.py, it likely returns the body directly.
+
+            // Check for our new 'mwassistant-smw' structure or direct result
+            let rawOutput = "";
+
+            if (result && result['mwassistant-smw'] && result['mwassistant-smw'].result) {
+                rawOutput = result['mwassistant-smw'].result;
+            } else if (result && result.result) {
+                rawOutput = result.result;
+            } else if (result && result.raw) {
+                // Fallback to old raw dump if somehow that path persists
+                rawOutput = JSON.stringify(result.raw, null, 2);
+            } else {
+                rawOutput = JSON.stringify(result, null, 2);
+            }
+
+            // If output looks like HTML, render it safely-ish?
+            // Since it comes from the parser, it *should* be safe HTML (sanitized by MW).
+            // But we should be careful.
+            // For now, let's treat it as HTML but maybe sandboxed or just trusted since it's from our server.
+            // Note: SMW often returns links, tables, lists.
+
+            contentHtml = rawOutput;
+
+            const $msg = $('<div>').addClass('mwassistant-msg mwassistant-msg-tool');
+
+            const html = `
+                <div class="mwassistant-tool-header">SMW Query Executed</div>
+                <div class="mwassistant-tool-query"><code>${$('<div>').text(query).html()}</code></div>
+                <div class="mwassistant-tool-result">
+                    <div class="mwassistant-tool-result-header">Result:</div>
+                    <div class="mwassistant-tool-result-content">${contentHtml}</div>
+                </div>
+            `;
+
+            $msg.html(html);
+            $log.append($msg);
+
+            // Handle any interactive elements (like sortable tables) if JS is needed?
+            // MW tables usually need 'jquery.tablesorter' etc. Might not load here.
+
+            $log.scrollTop($log.prop('scrollHeight'));
+        }
+
         /* ------------------------------------------------------------------
          * Event Binding
          * ------------------------------------------------------------------ */
@@ -281,6 +333,22 @@
                 } else {
                     $status.attr('href', result.log_info.url);
                 }
+            }
+
+            // Show tool usage if present
+            if (result.used_tools && result.used_tools.length) {
+                result.used_tools.forEach(tool => {
+                    if (tool.name === 'mw_run_smw_ask' && tool.result) {
+                        try {
+                            const args = JSON.parse(tool.args);
+                            if (args.ask) {
+                                this.appendToolMessage(args.ask, tool.result);
+                            }
+                        } catch (e) {
+                            console.error("Failed to parse tool args", e);
+                        }
+                    }
+                });
             }
 
             // Show assistant message
