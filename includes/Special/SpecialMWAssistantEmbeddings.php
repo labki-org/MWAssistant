@@ -129,7 +129,10 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
                     continue;
                 }
 
-                $res = $this->client->updatePage($user, $prefixed, $text, $mwTouched);
+                // $row->page_namespace is a string from DB, cast to int
+                $nsId = (int) $row->page_namespace;
+
+                $res = $this->client->updatePage($user, $prefixed, $text, $nsId, $mwTouched);
                 if (isset($res['error'])) {
                     $errors++;
                     $lastErr = $res['message'];
@@ -181,10 +184,13 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
         }
 
         $timestamp = $wikiPage->getTimestamp();
+        $namespace = $title->getNamespace();
+
         $res = $this->client->updatePage(
             $user,
             $title->getPrefixedText(),
             $text,
+            $namespace,
             $timestamp
         );
 

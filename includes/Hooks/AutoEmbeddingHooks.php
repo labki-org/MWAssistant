@@ -66,14 +66,22 @@ class AutoEmbeddingHooks
         }
 
         $pageTitle = $title->getPrefixedText();
+        $namespace = $title->getNamespace();
         $timestamp = $revisionRecord->getTimestamp();
 
         // Defer embedding update to avoid blocking the page save request
         DeferredUpdates::addCallable(
-            function () use ($user, $pageTitle, $text, $timestamp) {
+            function () use ($user, $pageTitle, $content, $timestamp, $namespace) {
+                // Re-fetch content properly inside closure if needed, but text is already extracted.
+                // Wait, text is extracted above line 63. Let's pass $text.
+                $text = ContentHandler::getContentText($content);
+                if (!is_string($text) || trim($text) === '') {
+                    return;
+                }
+
                 $client = new EmbeddingsClient();
                 try {
-                    $client->updatePage($user, $pageTitle, $text, $timestamp);
+                    $client->updatePage($user, $pageTitle, $text, $namespace, $timestamp);
                 } catch (\Throwable $e) {
                     LoggerFactory::getInstance('MWAssistant')
                         ->error('AutoEmbed update error: ' . $e->getMessage());

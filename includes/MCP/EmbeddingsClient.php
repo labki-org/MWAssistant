@@ -42,6 +42,7 @@ class EmbeddingsClient
         UserIdentity $user,
         string $title,
         string $content,
+        int $namespace = 0,
         ?string $timestamp = null
     ): array {
         $jwt = $this->createToken($user);
@@ -49,6 +50,7 @@ class EmbeddingsClient
         $payload = [
             'title' => $title,
             'content' => $content,
+            'namespace' => $namespace,
             'last_modified' => $timestamp,
         ];
 

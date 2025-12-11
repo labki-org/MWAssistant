@@ -189,60 +189,127 @@
 
 /* Tool Usage Messages */
 .mwassistant-msg-tool {
+    background-color: transparent;
+    border: none;
+    padding: 0;
+    margin-bottom: 8px;
+    width: 100%;
+    max-width: 100%;
+}
+
+.mwassistant-tool-details {
     background-color: #f8f9fa;
     border: 1px solid #e0e0e0;
     border-radius: 8px;
-    padding: 10px;
-    margin-bottom: 15px;
     font-size: 0.9em;
     color: #333;
-    max-width: 90%;
-    align-self: flex-start;
+}
+
+.mwassistant-tool-summary {
+    padding: 8px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    list-style: none;
+    /* Hide default triangle in some browsers */
+    outline: none;
+    user-select: none;
+}
+
+/* Custom indicator triangle */
+.mwassistant-tool-summary::-webkit-details-marker {
+    display: none;
+}
+
+.mwassistant-tool-summary::before {
+    content: '▶';
+    font-size: 0.8em;
+    margin-right: 8px;
+    color: #777;
+    transition: transform 0.2s;
+}
+
+.mwassistant-tool-details[open] .mwassistant-tool-summary::before {
+    transform: rotate(90deg);
+}
+
+.mwassistant-tool-name {
+    font-weight: bold;
+    color: #555;
+    margin-right: 10px;
+    text-transform: uppercase;
+    font-size: 0.85em;
+    white-space: nowrap;
+}
+
+.mwassistant-tool-preview {
+    color: #888;
+    font-family: monospace;
+    font-size: 0.9em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+}
+
+.mwassistant-tool-preview-query {
+    color: #d63384;
+    margin-right: 5px;
+}
+
+.mwassistant-tool-preview-result {
+    color: #2e7d32;
+    margin-left: 5px;
+}
+
+.mwassistant-tool-expanded {
+    padding: 0 12px 12px 12px;
+    border-top: 1px solid #eee;
+    margin-top: 4px;
 }
 
 .mwassistant-tool-header {
-    font-weight: bold;
-    color: #555;
-    margin-bottom: 5px;
-    text-transform: uppercase;
-    font-size: 0.8em;
-    letter-spacing: 0.5px;
+    /* Hidden in expanded view effectively since it's in summary now, 
+       but keeping rule just in case referenced elsewhere */
+    display: none;
 }
 
 .mwassistant-tool-query {
-    margin-bottom: 8px;
+    margin: 8px 0;
     background: #fff;
-    padding: 6px;
+    padding: 8px;
     border-radius: 4px;
     border: 1px solid #eee;
 }
 
 .mwassistant-tool-query code {
     color: #d63384;
-    /* Highlight color for query */
     word-break: break-all;
+    font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
+    font-size: 0.9em;
 }
 
 .mwassistant-tool-result {
     border-top: 1px solid #eee;
-    padding-top: 5px;
+    padding-top: 8px;
 }
 
 .mwassistant-tool-result-header {
     font-weight: bold;
     font-size: 0.8em;
     color: #777;
-    margin-bottom: 2px;
+    margin-bottom: 4px;
 }
 
 .mwassistant-tool-result pre {
     background: #2d2d2d;
     color: #fff;
-    padding: 8px;
+    padding: 10px;
     border-radius: 4px;
     overflow-x: auto;
     margin: 0;
     font-size: 0.85em;
-    max-height: 200px;
-    /* Prevent huge results from taking over */
+    max-height: 300px;
+    font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
 }

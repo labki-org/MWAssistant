@@ -164,55 +164,126 @@
             $log.scrollTop($log.prop('scrollHeight'));
         }
 
-        appendToolMessage(query, result) {
+        appendToolMessage(toolName, rawArgs, result) {
             const $log = this.$container.find('#mwassistant-chat-log');
+            let args = {};
+            try {
+                args = typeof rawArgs === 'string' ? JSON.parse(rawArgs) : rawArgs;
+            } catch (e) { args = { raw: rawArgs }; }
 
-            let contentHtml = '';
+            let displayQuery = "";
+            let displayResult = "";
+            let headerTitle = "Tool Execution";
 
-            // Handle new parser-based result (HTML/Text string)
-            // The API wrapper might return it nested, e.g. { mwassistant-smw: { result: "..." } }
-            // Or just { result: "..." } if flat. 
-            // Based on SMWClient.py, it likely returns the body directly.
-
-            // Check for our new 'mwassistant-smw' structure or direct result
-            let rawOutput = "";
-
-            if (result && result['mwassistant-smw'] && result['mwassistant-smw'].result) {
-                rawOutput = result['mwassistant-smw'].result;
-            } else if (result && result.result) {
-                rawOutput = result.result;
-            } else if (result && result.raw) {
-                // Fallback to old raw dump if somehow that path persists
-                rawOutput = JSON.stringify(result.raw, null, 2);
-            } else {
-                rawOutput = JSON.stringify(result, null, 2);
+            // Format Header & Query based on tool type
+            switch (toolName) {
+                case 'mw_run_smw_ask':
+                    headerTitle = "SMW Query";
+                    displayQuery = args.ask || "No query";
+                    break;
+                case 'mw_get_page':
+                    headerTitle = "Read Page";
+                    displayQuery = args.title || "Unknown Page";
+                    break;
+                case 'mw_get_categories':
+                    headerTitle = "Category Check";
+                    if (args.names) displayQuery = "Checking: " + args.names.join(", ");
+                    else if (args.prefix) displayQuery = "Search: " + args.prefix;
+                    else displayQuery = "List all";
+                    break;
+                case 'mw_get_properties':
+                    headerTitle = "Property Check";
+                    if (args.names) displayQuery = "Checking: " + args.names.join(", ");
+                    else if (args.prefix) displayQuery = "Search: " + args.prefix;
+                    else displayQuery = "List all";
+                    break;
+                case 'mw_vector_search':
+                    headerTitle = "Vector Search";
+                    displayQuery = args.query || "";
+                    break;
+                default:
+                    headerTitle = toolName;
+                    displayQuery = JSON.stringify(args);
             }
 
-            // If output looks like HTML, render it safely-ish?
-            // Since it comes from the parser, it *should* be safe HTML (sanitized by MW).
-            // But we should be careful.
-            // For now, let's treat it as HTML but maybe sandboxed or just trusted since it's from our server.
-            // Note: SMW often returns links, tables, lists.
+            // Generate Preview Text (Query)
+            let queryPreview = typeof displayQuery === 'string' ? displayQuery : JSON.stringify(displayQuery);
+            if (queryPreview.length > 50) queryPreview = queryPreview.substring(0, 50) + "...";
 
-            contentHtml = rawOutput;
+            // Format Result & Preview
+            let resultPreview = "";
+
+            if (result && result.error) {
+                displayResult = `<span class="mwassistant-error">${result.error}</span>`;
+                resultPreview = `Error: ${result.error}`;
+            } else if (toolName === 'mw_run_smw_ask') {
+                // SMW specific handling
+                if (result['mwassistant-smw']?.result) {
+                    displayResult = result['mwassistant-smw'].result;
+                    resultPreview = "SMW Result";
+                } else {
+                    displayResult = JSON.stringify(result, null, 2);
+                    resultPreview = "JSON Result";
+                }
+            } else if (Array.isArray(result)) {
+                // List results (categories/properties/search)
+                if (result.length === 0) {
+                    displayResult = "<em>No matches found.</em>";
+                    resultPreview = "No matches";
+                } else if (typeof result[0] === 'string') {
+                    // Simple string list
+                    displayResult = `<ul class="mwassistant-tool-list">${result.map(x => `<li>${x}</li>`).join('')}</ul>`;
+                    resultPreview = result.join(", ");
+                } else if (result[0]?.title && result[0]?.score) {
+                    // Search results
+                    displayResult = `<ul class="mwassistant-tool-list">
+                        ${result.map(x => `<li><b>[[${x.title}]]</b> (Score: ${x.score.toFixed(2)})</li>`).join('')}
+                    </ul>`;
+                    resultPreview = `${result.length} results found`;
+                } else {
+                    displayResult = `<pre>${JSON.stringify(result, null, 2)}</pre>`;
+                    resultPreview = "Array Result";
+                }
+            } else if (typeof result === 'string') {
+                // Text result (e.g. page content) - truncate for display
+                const maxLen = 500;
+                resultPreview = result;
+                if (result.length > maxLen) {
+                    displayResult = `<div class="mwassistant-collapsed-content">
+                        ${$('<div>').text(result.substring(0, maxLen)).html()}...
+                        <br><em>(${result.length} chars total)</em>
+                    </div>`;
+                } else {
+                    displayResult = $('<div>').text(result).html();
+                }
+            } else {
+                displayResult = `<pre>${JSON.stringify(result, null, 2)}</pre>`;
+                resultPreview = "Output Object";
+            }
+
+            // Truncate result preview
+            if (resultPreview.length > 50) resultPreview = resultPreview.substring(0, 50) + "...";
 
             const $msg = $('<div>').addClass('mwassistant-msg mwassistant-msg-tool');
 
             const html = `
-                <div class="mwassistant-tool-header">SMW Query Executed</div>
-                <div class="mwassistant-tool-query"><code>${$('<div>').text(query).html()}</code></div>
-                <div class="mwassistant-tool-result">
-                    <div class="mwassistant-tool-result-header">Result:</div>
-                    <div class="mwassistant-tool-result-content">${contentHtml}</div>
-                </div>
+                <details class="mwassistant-tool-details">
+                    <summary class="mwassistant-tool-summary">
+                        <span class="mwassistant-tool-name">${headerTitle}</span>
+                        <span class="mwassistant-tool-preview"><span class="mwassistant-tool-preview-query">${$('<div>').text(queryPreview).html()}</span> &rarr; <span class="mwassistant-tool-preview-result">${$('<div>').text(resultPreview).html()}</span></span>
+                    </summary>
+                    <div class="mwassistant-tool-expanded">
+                        <div class="mwassistant-tool-query"><code>${$('<div>').text(displayQuery).html()}</code></div>
+                        <div class="mwassistant-tool-result">
+                            <div class="mwassistant-tool-result-header">Result:</div>
+                            <div class="mwassistant-tool-result-content">${displayResult}</div>
+                        </div>
+                    </div>
+                </details>
             `;
 
             $msg.html(html);
             $log.append($msg);
-
-            // Handle any interactive elements (like sortable tables) if JS is needed?
-            // MW tables usually need 'jquery.tablesorter' etc. Might not load here.
-
             $log.scrollTop($log.prop('scrollHeight'));
         }
 
@@ -338,16 +409,7 @@
             // Show tool usage if present
             if (result.used_tools && result.used_tools.length) {
                 result.used_tools.forEach(tool => {
-                    if (tool.name === 'mw_run_smw_ask' && tool.result) {
-                        try {
-                            const args = JSON.parse(tool.args);
-                            if (args.ask) {
-                                this.appendToolMessage(args.ask, tool.result);
-                            }
-                        } catch (e) {
-                            console.error("Failed to parse tool args", e);
-                        }
-                    }
+                    this.appendToolMessage(tool.name, tool.args, tool.result);
                 });
             }
 
