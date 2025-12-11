@@ -33,9 +33,10 @@
                 "mediawiki.util"
             ],
             "targets": [
-                "desktop",
                 "mobile"
-            ]
+            ],
+            "localBasePath": "",
+            "remoteExtPath": "MWAssistant"
         },
         "ext.mwassistant.editor": {
             "scripts": [
@@ -50,7 +51,9 @@
             ],
             "targets": [
                 "desktop"
-            ]
+            ],
+            "localBasePath": "",
+            "remoteExtPath": "MWAssistant"
         },
         "ext.mwassistant.global": {
             "scripts": [
@@ -64,9 +67,10 @@
                 "jquery"
             ],
             "targets": [
-                "desktop",
                 "mobile"
-            ]
+            ],
+            "localBasePath": "",
+            "remoteExtPath": "MWAssistant"
         },
         "ext.mwassistant.embeddings": {
             "scripts": [
@@ -81,9 +85,10 @@
                 "oojs-ui-widgets"
             ],
             "targets": [
-                "desktop",
                 "mobile"
-            ]
+            ],
+            "localBasePath": "",
+            "remoteExtPath": "MWAssistant"
         }
     },
     "SpecialPages": {
