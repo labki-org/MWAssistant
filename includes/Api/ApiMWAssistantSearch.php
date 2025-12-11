@@ -5,35 +5,78 @@ namespace MWAssistant\Api;
 use MWAssistant\Api\ApiMWAssistantBase;
 use MWAssistant\MCP\SearchClient;
 
+/**
+ * API endpoint for sending search queries to the MCP server.
+ *
+ * Responsibilities:
+ *  - Authenticate via inherited checkAccess() (JWT or session).
+ *  - Validate incoming "query" input.
+ *  - Forward search requests to SearchClient.
+ *  - Return structured search results.
+ */
 class ApiMWAssistantSearch extends ApiMWAssistantBase
 {
 
-    public function execute()
+    /**
+     * Execute the search request.
+     *
+     * @return void
+     */
+    public function execute(): void
     {
+        // Require JWT scope "search" when JWT-authenticated.
         $this->checkAccess(['search']);
+
+        $params = $this->extractRequestParams();
+        $query = $params['query'] ?? '';
+
+        // -------------------------------------------------------------
+        // Validate query parameter
+        // -------------------------------------------------------------
+        if (!is_string($query) || trim($query) === '') {
+            $this->dieWithError(
+                ['apierror-badparams', 'Search query cannot be empty.'],
+                'query'
+            );
+        }
 
         $user = $this->getUser();
 
-        $params = $this->extractRequestParams();
-        $query = $params['query'];
-
+        // -------------------------------------------------------------
+        // Send to MCP search backend
+        // -------------------------------------------------------------
         $client = new SearchClient();
         $result = $client->search($user, $query);
 
-        $this->getResult()->addValue(null, $this->getModuleName(), $result);
+        // -------------------------------------------------------------
+        // Output result
+        // -------------------------------------------------------------
+        $this->getResult()->addValue(
+            null,
+            $this->getModuleName(),
+            $result
+        );
     }
 
-    public function getAllowedParams()
+    /**
+     * @inheritDoc
+     */
+    public function getAllowedParams(): array
     {
         return [
             'query' => [
                 self::PARAM_TYPE => 'string',
                 self::PARAM_REQUIRED => true,
-            ]
+            ],
         ];
     }
 
-    public function needsToken()
+    /**
+     * Searches require a CSRF token when invoked from the UI.
+     *
+     * @return string
+     */
+    public function needsToken(): string
     {
         return 'csrf';
     }

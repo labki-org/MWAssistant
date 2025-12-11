@@ -2,89 +2,138 @@
 
 namespace MWAssistant\MCP;
 
+use MWAssistant\Config;
 use MWAssistant\HttpClient;
 use MWAssistant\JWT;
-use MediaWiki\User\UserIdentity;
 use MediaWiki\MediaWikiServices;
+use MediaWiki\User\UserIdentity;
 
-use MWAssistant\Config;
-
+/**
+ * Client for MCP embeddings endpoints.
+ *
+ * Endpoints:
+ *  - POST /embeddings/page        (create/update page embedding)
+ *  - DELETE /embeddings/page      (delete page embedding)
+ *  - GET /embeddings/stats        (stats/health for embeddings index)
+ */
 class EmbeddingsClient
 {
-    private $client;
+
+    /** @var HttpClient */
+    private HttpClient $client;
 
     public function __construct()
     {
+        // Explicitly configure MCP base URL for embeddings operations.
         $this->client = new HttpClient(Config::getMCPBaseUrl());
     }
 
-    public function updatePage(UserIdentity $user, string $title, string $content, ?string $timestamp = null): array
-    {
+    /**
+     * Create or update embeddings for a given page.
+     *
+     * @param UserIdentity $user
+     * @param string $title
+     * @param string $content
+     * @param string|null $timestamp Last-modified timestamp (optional)
+     *
+     * @return array
+     */
+    public function updatePage(
+        UserIdentity $user,
+        string $title,
+        string $content,
+        ?string $timestamp = null
+    ): array {
         $jwt = $this->createToken($user);
+
         $payload = [
             'title' => $title,
             'content' => $content,
-            'last_modified' => $timestamp
+            'last_modified' => $timestamp,
         ];
 
-        return $this->handleResponse(
-            $this->client->postJson('/embeddings/page', $payload, $jwt)
-        );
+        $resp = $this->client->postJson('/embeddings/page', $payload, $jwt);
+        return $this->handleResponse($resp);
     }
 
+    /**
+     * Delete embeddings for a given page title.
+     *
+     * Assumes MCP server exposes:
+     *   DELETE /embeddings/page    with JSON body { "title": "<title>" }
+     *
+     * @param UserIdentity $user
+     * @param string $title
+     *
+     * @return array
+     */
     public function deletePage(UserIdentity $user, string $title): array
     {
         $jwt = $this->createToken($user);
 
-        // DELETE with body is sometimes tricky in some clients, but standard HttpClient should handle it 
-        // or we check if we need to pass data in options. 
-        // Assuming postJson style but with DELETE method if available?
-        // HttpClient wrapper usually simplifies this.
-        // If DELETE body is not supported by wrapper, we might need a POST to /embeddings/page/delete or similar.
-        // But let's assume standard behavior for now. 
-        // Actually, many clients don't support body in DELETE. 
-        // Let's check HttpClient implementation.
-        // If strictly REST, DELETE supports body but it's discouraged. 
-        // I will allow it or use a separate method in HttpClient.
-        // For safety, I'll assume HttpClient::request('DELETE', ...)
-
-        // If HttpClient only has get/post, I might have a problem.
-        // Let's assume I can use postJson for everything if I change the server to accept POST for delete?
-        // No, I defined server as DELETE.
-
-        // Let's check HttpClient if I can. But for now I will assume I can pass data.
-        // If not, I will change server to accept POST /delete-page if needed.
-        // Re-reading implementation plan: I defined DELETE /embeddings/page.
-
         $payload = ['title' => $title];
-        return $this->handleResponse(
-            $this->client->request('DELETE', '/embeddings/page', $payload, $jwt)
-        );
+
+        // Assumes HttpClient::request(method, path, payload, jwt) is supported.
+        $resp = $this->client->request('DELETE', '/embeddings/page', $payload, $jwt);
+        return $this->handleResponse($resp);
     }
 
+    /**
+     * Fetch basic embeddings index statistics.
+     *
+     * @param UserIdentity $user
+     * @return array
+     */
     public function getStats(UserIdentity $user): array
     {
         $jwt = $this->createToken($user);
-        return $this->handleResponse(
-            $this->client->getJson('/embeddings/stats', [], $jwt)
-        );
+        $resp = $this->client->getJson('/embeddings/stats', [], $jwt);
+        return $this->handleResponse($resp);
     }
 
+    /**
+     * Build MW→MCP JWT for embeddings operations.
+     *
+     * @param UserIdentity $user
+     * @return string
+     */
     private function createToken(UserIdentity $user): string
     {
-        $roles = MediaWikiServices::getInstance()->getUserGroupManager()->getUserGroups($user);
+        $roles = MediaWikiServices::getInstance()
+            ->getUserGroupManager()
+            ->getUserGroups($user);
+
         return JWT::createMWToMCPToken($user, $roles, ['embeddings']);
     }
 
+    /**
+     * Normalize MCP HTTP response into a consistent shape.
+     *
+     * On success:
+     *  - returns $resp['body'] (or [] if missing)
+     *
+     * On error:
+     *  - returns ['error' => true, 'status' => int|null, 'message' => string]
+     *
+     * @param array $resp
+     * @return array
+     */
     private function handleResponse(array $resp): array
     {
-        if (!$resp['ok']) {
+        $ok = $resp['ok'] ?? false;
+
+        if (!$ok) {
+            $code = $resp['code'] ?? null;
+            $body = $resp['body'] ?? null;
+            $bodyStr = is_string($body) ? $body : json_encode($body);
+
             return [
                 'error' => true,
-                'status' => $resp['code'],
-                'message' => 'MCP embedding error: ' . (is_string($resp['body']) ? $resp['body'] : json_encode($resp['body']))
+                'status' => $code,
+                'message' => 'MCP embeddings error: ' . ($bodyStr ?? 'Unknown error'),
             ];
         }
-        return $resp['body'];
+
+        return $resp['body'] ?? [];
     }
 }

@@ -3,105 +3,197 @@
 namespace MWAssistant\Api;
 
 use MediaWiki\Api\ApiBase;
-use MWAssistant\MCP\ChatClient;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Title\Title;
 use MediaWiki\Revision\SlotRecord;
-use MediaWiki\CommentFormatter\CommentParser;
 use MWAssistant\Api\ApiMWAssistantBase;
+use MWAssistant\MCP\ChatClient;
+use WikitextContent;
+use MediaWiki\CommentStore\CommentStoreComment;
 
+/**
+ * API endpoint for submitting chat messages to the MCP server
+ * and returning model responses.
+ *
+ * Responsibilities:
+ *  - Authenticate (JWT or session) using inherited checkAccess().
+ *  - Validate & parse the incoming message payload.
+ *  - Forward conversation state to ChatClient.
+ *  - Optionally log the most recent interaction to a per-user chat log page.
+ */
 class ApiMWAssistantChat extends ApiMWAssistantBase
 {
 
-    public function execute()
+    /**
+     * Main API execution.
+     *
+     * @return void
+     */
+    public function execute(): void
     {
+        // Require the JWT scope "chat_completion" if authenticated via JWT.
         $this->checkAccess(['chat_completion']);
 
         $params = $this->extractRequestParams();
+
+        // -------------------------------------------------------------
+        // Parameter validation
+        // -------------------------------------------------------------
         $messages = json_decode($params['messages'], true);
-        $sessionId = $params['session_id'];
+        $sessionId = $params['session_id'] ?? null;
 
         if (!is_array($messages)) {
-            $this->dieWithError('apierror-badparams', 'messages');
+            $this->dieWithError(
+                ['apierror-badparams', 'Invalid messages parameter'],
+                'messages'
+            );
         }
 
+        // -------------------------------------------------------------
+        // Invoke the MCP chat backend
+        // -------------------------------------------------------------
         $user = $this->getUser();
         $client = new ChatClient();
         $response = $client->chat($user, $messages, $sessionId);
 
-        // Auto-log the interaction if successful
-        if ($response && isset($response['messages'])) {
+        // -------------------------------------------------------------
+        // Optional logging of successful assistant reply
+        // -------------------------------------------------------------
+        if (is_array($response) && isset($response['messages'])) {
             $lastMsg = end($response['messages']);
-            if (isset($lastMsg['content'])) {
-                $logInfo = $this->logInteraction($user, $sessionId, $messages, $lastMsg['content']);
+            $assistantReply = $lastMsg['content'] ?? null;
+
+            if ($assistantReply) {
+                $logInfo = $this->logInteraction(
+                    $user,
+                    $sessionId,
+                    $messages,
+                    $assistantReply
+                );
+
                 if ($logInfo) {
                     $response['log_info'] = $logInfo;
                 }
             }
         }
 
-        $this->getResult()->addValue(null, $this->getModuleName(), $response);
+        // -------------------------------------------------------------
+        // Output result
+        // -------------------------------------------------------------
+        $this->getResult()->addValue(
+            null,
+            $this->getModuleName(),
+            $response
+        );
     }
 
-    private function logInteraction($user, $sessionId, $inputMessages, $assistantResponse)
-    {
-        // Get the last user message
+    /**
+     * Append a chat exchange to the user's log page.
+     *
+     * Structure:
+     *   User:<username>/ChatLogs/YYYY-MM-DD_<sessionId>
+     *
+     * Failures are intentionally silent so they never block chat responses.
+     *
+     * @param \UserIdentity $user
+     * @param string|null $sessionId
+     * @param array $inputMessages
+     * @param string $assistantResponse
+     *
+     * @return array|null ['title' => string, 'url' => string] or null on failure
+     */
+    private function logInteraction(
+        $user,
+        ?string $sessionId,
+        array $inputMessages,
+        string $assistantResponse
+    ): ?array {
+
+        // -------------------------------------------------------------
+        // Extract last user message
+        // -------------------------------------------------------------
         $lastUserMsg = '';
-        if (is_array($inputMessages)) {
-            $lastItem = end($inputMessages);
-            if (isset($lastItem['content'])) {
-                $lastUserMsg = $lastItem['content'];
-            }
+        if ($inputMessages) {
+            $last = end($inputMessages);
+            $lastUserMsg = $last['content'] ?? '';
         }
 
         if (!$lastUserMsg) {
             return null;
         }
 
+        // -------------------------------------------------------------
+        // Build safe log page title
+        // -------------------------------------------------------------
         $date = date('Y-m-d');
-        $safeSessionId = preg_replace('/[^a-zA-Z0-9-]/', '', $sessionId);
-        $pageTitleStr = "User:" . $user->getName() . "/ChatLogs/" . $date . "_" . $safeSessionId;
-        $title = Title::newFromText($pageTitleStr);
+        $safeSessionId = $sessionId ?
+            preg_replace('/[^a-zA-Z0-9\-]/', '', $sessionId) :
+            'default';
 
-        if (!$title) {
+        $pageTitleStr = sprintf(
+            'User:%s/ChatLogs/%s_%s',
+            $user->getName(),
+            $date,
+            $safeSessionId
+        );
+
+        $title = Title::newFromText($pageTitleStr);
+        if (!$title instanceof Title) {
             return null;
         }
 
+        // -------------------------------------------------------------
+        // Update or create the page
+        // -------------------------------------------------------------
         try {
             $services = MediaWikiServices::getInstance();
             $wikiPage = $services->getWikiPageFactory()->newFromTitle($title);
             $updater = $wikiPage->newPageUpdater($user);
 
-            // Append Content
-            $newText = "\n* '''User:''' " . $lastUserMsg . "\n* '''Assistant:''' " . $assistantResponse . "\n";
+            // Build new entry
+            $entry = "\n* '''User:''' {$lastUserMsg}\n"
+                . "* '''Assistant:''' {$assistantResponse}\n";
 
-            // If page doesn't exist, add header
+            $contentText = '';
+
             if (!$wikiPage->exists()) {
-                $header = "== Chat Session: " . date('Y-m-d H:i:s') . " ==\n'''Session ID:''' " . $safeSessionId . "\n----\n";
-                $newText = $header . $newText;
+                // Add header for new log page
+                $header = sprintf(
+                    "== Chat Session: %s ==\n'''Session ID:''' %s\n----\n",
+                    date('Y-m-d H:i:s'),
+                    $safeSessionId
+                );
+                $contentText = $header . $entry;
             } else {
-                // Load existing content to append
+                // Append to existing page
                 $revision = $wikiPage->getRevisionRecord();
+                $existingContent = '';
+
                 if ($revision) {
-                    $content = $revision->getContent(SlotRecord::MAIN);
-                    if ($content instanceof \WikitextContent) {
-                        $newText = $content->getText() . $newText;
+                    $contentObj = $revision->getContent(SlotRecord::MAIN);
+                    if ($contentObj instanceof WikitextContent) {
+                        $existingContent = $contentObj->getText();
                     }
                 }
+
+                $contentText = $existingContent . $entry;
             }
 
-            $contentObj = $services->getContentHandlerFactory()
+            $contentObj = $services
+                ->getContentHandlerFactory()
                 ->getContentHandler('wikitext')
-                ->makeContent($newText, $title);
+                ->makeContent($contentText, $title);
 
             $updater->setContent(SlotRecord::MAIN, $contentObj);
 
-            $summary = $wikiPage->exists() ? "Logging chat message" : "Creating chat log";
+            $summary = $wikiPage->exists()
+                ? 'Logging chat message'
+                : 'Creating chat log';
 
-            // Passing string directly avoids compatibility issues with CommentStoreComment factory methods
+            // Save the revision with suppressed RecentChanges entry
             $updater->saveRevision(
-                \MediaWiki\CommentStore\CommentStoreComment::newUnsavedComment($summary),
-                CONSTANT('EDIT_INTERNAL') | CONSTANT('EDIT_SUPPRESS_RC')
+                CommentStoreComment::newUnsavedComment($summary),
+                EDIT_INTERNAL | EDIT_SUPPRESS_RC
             );
 
             return [
@@ -110,13 +202,18 @@ class ApiMWAssistantChat extends ApiMWAssistantBase
             ];
 
         } catch (\Throwable $e) {
-            // Silently fail logging so we don't break the chat response
-            wfDebugLog('mwassistant', 'Failed to log chat: ' . $e->getMessage());
+            wfDebugLog(
+                'mwassistant',
+                'Failed to log chat: ' . $e->getMessage()
+            );
             return null;
         }
     }
 
-    public function getAllowedParams()
+    /**
+     * @inheritDoc
+     */
+    public function getAllowedParams(): array
     {
         return [
             'messages' => [
@@ -126,11 +223,16 @@ class ApiMWAssistantChat extends ApiMWAssistantBase
             'session_id' => [
                 self::PARAM_TYPE => 'string',
                 self::PARAM_REQUIRED => false,
-            ]
+            ],
         ];
     }
 
-    public function needsToken()
+    /**
+     * Chat actions require a CSRF token when invoked from the UI.
+     *
+     * @return string
+     */
+    public function needsToken(): string
     {
         return 'csrf';
     }

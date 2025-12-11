@@ -35,9 +35,7 @@
             "targets": [
                 "desktop",
                 "mobile"
-            ],
-            "localBasePath": "",
-            "remoteExtPath": "MWAssistant"
+            ]
         },
         "ext.mwassistant.editor": {
             "scripts": [
@@ -52,9 +50,7 @@
             ],
             "targets": [
                 "desktop"
-            ],
-            "localBasePath": "",
-            "remoteExtPath": "MWAssistant"
+            ]
         },
         "ext.mwassistant.global": {
             "scripts": [
@@ -70,9 +66,7 @@
             "targets": [
                 "desktop",
                 "mobile"
-            ],
-            "localBasePath": "",
-            "remoteExtPath": "MWAssistant"
+            ]
         },
         "ext.mwassistant.embeddings": {
             "scripts": [
@@ -89,9 +83,7 @@
             "targets": [
                 "desktop",
                 "mobile"
-            ],
-            "localBasePath": "",
-            "remoteExtPath": "MWAssistant"
+            ]
         }
     },
     "SpecialPages": {
@@ -110,7 +102,7 @@
         "mwassistant-chat": "MWAssistant\\Api\\ApiMWAssistantChat",
         "mwassistant-search": "MWAssistant\\Api\\ApiMWAssistantSearch",
         "mwassistant-smw": "MWAssistant\\Api\\ApiMWAssistantSMW",
-        "mwassistant-action": "MWAssistant\\Api\\ApiMWAssistantAction"
+        "mwassistant-savelog": "MWAssistant\\Api\\ApiMWAssistantSaveLog"
     },
     "load_composer_autoloader": true,
     "url": "https://www.mediawiki.org/wiki/Extension:MWAssistant",

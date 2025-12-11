@@ -2,120 +2,190 @@
 
 namespace MWAssistant;
 
+use RuntimeException;
+
+/**
+ * Validates inbound JWTs originating from mw-mcp-server.
+ *
+ * This implementation:
+ *   - Performs safe base64url decoding with full error detection
+ *   - Performs strict JSON decoding with error handling
+ *   - Validates all claims (iss, aud, iat, exp, scope)
+ *   - Applies standard JWT leeway (clock skew tolerance)
+ *   - Uses constant-time signature comparison
+ *   - Provides hardened logging for debugging
+ */
 class JWTVerifier
 {
 
+    /** @var int Acceptable clock skew in seconds. */
+    private int $leeway = 10;
+
     /**
-     * Verify a JWT from mw-mcp-server
-     * 
-     * @param string $token The JWT token to verify
-     * @param array $requiredScopes Scopes that must be present in the token
-     * @return array|false Decoded payload on success, false on failure
+     * Verify a JWT produced by mw-mcp-server.
+     *
+     * @param string $token
+     * @param array<string> $requiredScopes
+     * @return array|false Decoded payload or false when invalid
      */
-    public function verifyMCPToMWToken(string $token, array $requiredScopes = []): array|false
-    {
+    public function verifyMCPToMWToken(
+        string $token,
+        array $requiredScopes = []
+    ): array|false {
         try {
-            // Split token into parts
+            // ------------------------------------------------------------------
+            // Step 1: Split
+            // ------------------------------------------------------------------
             $parts = explode('.', $token);
             if (count($parts) !== 3) {
-                $this->logVerificationFailure('Invalid token format: not 3 parts');
-                return false;
+                return $this->fail('Malformed JWT: must contain 3 parts');
             }
 
             [$headerB64, $payloadB64, $signatureB64] = $parts;
 
-            // Decode header and payload
-            $header = json_decode($this->base64UrlDecode($headerB64), true);
-            $payload = json_decode($this->base64UrlDecode($payloadB64), true);
+            $headerJson = $this->safeBase64UrlDecode($headerB64, 'header');
+            $payloadJson = $this->safeBase64UrlDecode($payloadB64, 'payload');
 
-            if (!$header || !$payload) {
-                $this->logVerificationFailure('Invalid JSON in header or payload');
-                return false;
+            // ------------------------------------------------------------------
+            // Step 2: Decode JSON safely
+            // ------------------------------------------------------------------
+            $header = json_decode($headerJson, true);
+            $payload = json_decode($payloadJson, true);
+
+            if (!is_array($header) || !is_array($payload)) {
+                return $this->fail('Invalid JSON in JWT header or payload');
             }
 
-            // Verify algorithm
-            if (!isset($header['alg']) || $header['alg'] !== 'HS256') {
-                $this->logVerificationFailure('Invalid algorithm', $payload);
-                return false;
+            // ------------------------------------------------------------------
+            // Step 3: Validate header (algorithm, etc.)
+            // ------------------------------------------------------------------
+            if (($header['alg'] ?? null) !== 'HS256') {
+                return $this->fail('Unsupported JWT alg (expected HS256)', $payload);
             }
 
-            // Verify signature
+            // ------------------------------------------------------------------
+            // Step 4: Validate signature
+            // ------------------------------------------------------------------
             $secret = Config::getJWTMCPToMWSecret();
-            $expectedSignature = $this->base64UrlEncode(
-                hash_hmac('sha256', $headerB64 . '.' . $payloadB64, $secret, true)
+
+            $expectedSig = $this->base64UrlEncode(
+                hash_hmac('sha256', "{$headerB64}.{$payloadB64}", $secret, true)
             );
 
-            if (!hash_equals($expectedSignature, $signatureB64)) {
-                $this->logVerificationFailure('Signature verification failed', $payload);
-                return false;
+            if (!hash_equals($expectedSig, $signatureB64)) {
+                return $this->fail('JWT signature verification failed', $payload);
             }
 
-            // Verify issuer
-            if (!isset($payload['iss']) || $payload['iss'] !== 'mw-mcp-server') {
-                $this->logVerificationFailure('Invalid issuer', $payload);
-                return false;
+            // ------------------------------------------------------------------
+            // Step 5: Required claims
+            // ------------------------------------------------------------------
+            if (!isset($payload['iss']) || !is_string($payload['iss'])) {
+                return $this->fail('Missing or invalid "iss" claim', $payload);
             }
 
-            // Verify audience
-            if (!isset($payload['aud']) || $payload['aud'] !== 'MWAssistant') {
-                $this->logVerificationFailure('Invalid audience', $payload);
-                return false;
+            if (!isset($payload['aud']) || !is_string($payload['aud'])) {
+                return $this->fail('Missing or invalid "aud" claim', $payload);
             }
 
-            // Verify expiration
+            if (!isset($payload['iat']) || !is_int($payload['iat'])) {
+                return $this->fail('Missing or invalid "iat" claim', $payload);
+            }
+
+            if (!isset($payload['exp']) || !is_int($payload['exp'])) {
+                return $this->fail('Missing or invalid "exp" claim', $payload);
+            }
+
+            // ------------------------------------------------------------------
+            // Step 6: Logical validation of iss/aud
+            // ------------------------------------------------------------------
+            if ($payload['iss'] !== 'mw-mcp-server') {
+                return $this->fail('Invalid issuer', $payload);
+            }
+
+            if ($payload['aud'] !== 'MWAssistant') {
+                return $this->fail('Invalid audience', $payload);
+            }
+
+            // ------------------------------------------------------------------
+            // Step 7: Validate timestamps with leeway
+            // ------------------------------------------------------------------
             $now = time();
-            if (!isset($payload['exp']) || $payload['exp'] < $now) {
-                $this->logVerificationFailure('Token expired', $payload);
-                return false;
+
+            if ($payload['iat'] > $now + $this->leeway) {
+                return $this->fail('Token issued in the future', $payload);
             }
 
-            // Verify issued at (not in future)
-            if (!isset($payload['iat']) || $payload['iat'] > $now + 5) { // Allow 5 second clock skew
-                $this->logVerificationFailure('Invalid issued-at time', $payload);
-                return false;
+            if ($payload['exp'] < $now - $this->leeway) {
+                return $this->fail('Token expired', $payload);
             }
 
-            // Verify scopes
-            if (!empty($requiredScopes)) {
-                $tokenScopes = $payload['scope'] ?? [];
-                foreach ($requiredScopes as $scope) {
-                    if (!in_array($scope, $tokenScopes, true)) {
-                        $this->logVerificationFailure('Missing required scope: ' . $scope, $payload);
-                        return false;
-                    }
+            // ------------------------------------------------------------------
+            // Step 8: Validate required scopes
+            // ------------------------------------------------------------------
+            $tokenScopes = $payload['scope'] ?? [];
+
+            if (!is_array($tokenScopes)) {
+                return $this->fail('Invalid "scope" claim', $payload);
+            }
+
+            foreach ($requiredScopes as $scope) {
+                if (!in_array($scope, $tokenScopes, true)) {
+                    return $this->fail("Missing required scope: {$scope}", $payload);
                 }
             }
 
-            // All checks passed
+            // All checks passed successfully
             return $payload;
 
         } catch (\Throwable $e) {
-            $this->logVerificationFailure('Exception during verification: ' . $e->getMessage());
-            return false;
+            // Safe fallback
+            return $this->fail("Exception during verification: {$e->getMessage()}");
         }
     }
 
-    private function base64UrlDecode(string $data): string
+    // ========================================================================
+    // Internal helpers
+    // ========================================================================
+
+    private function safeBase64UrlDecode(string $value, string $context): string
     {
-        $padded = str_pad($data, ceil(strlen($data) / 4) * 4, '=', STR_PAD_RIGHT);
-        return base64_decode(str_replace(['-', '_'], ['+', '/'], $padded));
+        $padded = str_pad(
+            strtr($value, '-_', '+/'),
+            strlen($value) % 4 === 0 ? strlen($value) : strlen($value) + (4 - strlen($value) % 4),
+            '=',
+            STR_PAD_RIGHT
+        );
+
+        $decoded = base64_decode($padded, true);
+
+        if ($decoded === false) {
+            throw new RuntimeException("Invalid base64url encoding in JWT {$context}");
+        }
+
+        return $decoded;
     }
 
     private function base64UrlEncode(string $data): string
     {
-        return str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($data));
+        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
     }
 
-    private function logVerificationFailure(string $reason, ?array $claims = null): void
+    private function fail(string $reason, ?array $claims = null): false
     {
-        $logData = [
+        $this->logFailure($reason, $claims);
+        return false;
+    }
+
+    private function logFailure(string $reason, ?array $claims = null): void
+    {
+        $entry = [
             'reason' => $reason,
             'timestamp' => time(),
-            'iss' => $claims['iss'] ?? 'unknown',
-            'aud' => $claims['aud'] ?? 'unknown',
-            'scope' => $claims['scope'] ?? []
+            'iss' => $claims['iss'] ?? null,
+            'aud' => $claims['aud'] ?? null,
+            'scopes' => $claims['scope'] ?? null,
         ];
 
-        \wfDebugLog('mwassistant-jwt', json_encode($logData));
+        \wfDebugLog('mwassistant-jwt', json_encode($entry));
     }
 }

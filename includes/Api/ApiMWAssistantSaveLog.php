@@ -6,14 +6,35 @@ use MediaWiki\Api\ApiBase;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Title\Title;
 use MediaWiki\Revision\SlotRecord;
+use MediaWiki\CommentStore\CommentStoreComment;
+use MediaWiki\Content\WikitextContent;
 
+/**
+ * API endpoint that saves a chat log to a MediaWiki page.
+ *
+ * Path:
+ *   User:<Username>/ChatLogs/<YYYY-MM-DD>_<sessionId>
+ *
+ * Notes:
+ *  - Overwrites the entire log for a given session.
+ *  - Intended for frontend-driven chat log editing or replacements.
+ *  - Refuses all access for anonymous or unauthorized users.
+ */
 class ApiMWAssistantSaveLog extends ApiBase
 {
 
-    public function execute()
+    /**
+     * Execute the save-log request.
+     *
+     * @return void
+     */
+    public function execute(): void
     {
         $user = $this->getUser();
 
+        // -------------------------------------------------------------
+        // Permission checks
+        // -------------------------------------------------------------
         if (!$user->isAllowed('mwassistant-use')) {
             $this->dieWithError('apierror-permissiondenied', 'permissiondenied');
         }
@@ -22,66 +43,106 @@ class ApiMWAssistantSaveLog extends ApiBase
             $this->dieWithError('apierror-mustbeloggedin', 'mustbeloggedin');
         }
 
+        // -------------------------------------------------------------
+        // Parameter extraction & validation
+        // -------------------------------------------------------------
         $params = $this->extractRequestParams();
-        $sessionId = $params['session_id'];
-        $content = $params['content'];
 
-        // Construct title: User:<Username>/ChatLogs/<Date>_<SessionID>
-        // Use a safe date format
+        $sessionId = $params['session_id'] ?? '';
+        $content = $params['content'] ?? '';
+
+        if (trim($sessionId) === '') {
+            $this->dieWithError(
+                ['apierror-badparams', 'Session ID cannot be empty.'],
+                'session_id'
+            );
+        }
+
+        if (!is_string($content)) {
+            $this->dieWithError(
+                ['apierror-badparams', 'Content must be a string.'],
+                'content'
+            );
+        }
+
+        // -------------------------------------------------------------
+        // Build safe page title
+        // -------------------------------------------------------------
         $date = date('Y-m-d');
-        // Sanitize session ID just in case, though Title::makeTitleSafe handles significantly
-        $safeSessionId = preg_replace('/[^a-zA-Z0-9-]/', '', $sessionId);
 
-        $pageTitleStr = "User:" . $user->getName() . "/ChatLogs/" . $date . "_" . $safeSessionId;
+        // Only allow safe characters for the session ID
+        $safeSessionId = preg_replace('/[^a-zA-Z0-9\-]/', '', $sessionId);
+        if ($safeSessionId === '') {
+            $safeSessionId = 'default';
+        }
+
+        $pageTitleStr = sprintf(
+            'User:%s/ChatLogs/%s_%s',
+            $user->getName(),
+            $date,
+            $safeSessionId
+        );
+
         $title = Title::newFromText($pageTitleStr);
-
         if (!$title) {
             $this->dieWithError('apierror-invalidtitle', 'invalidtitle');
         }
 
+        // -------------------------------------------------------------
+        // Write content to the page
+        // -------------------------------------------------------------
         try {
             $services = MediaWikiServices::getInstance();
-            $wikiPageFactory = $services->getWikiPageFactory();
-            $wikiPage = $wikiPageFactory->newFromTitle($title);
 
+            $wikiPage = $services->getWikiPageFactory()->newFromTitle($title);
             $updater = $wikiPage->newPageUpdater($user);
 
-            // We overwrite the content for this session log
-            $contentObj = $services->getContentHandlerFactory()
-                ->getContentHandler('wikitext')
-                ->makeContent($content);
+            // Build new wikitext content object
+            $handler = $services->getContentHandlerFactory()->getContentHandler('wikitext');
+            $contentObj = $handler->makeContent($content, $title);
 
             $updater->setContent(SlotRecord::MAIN, $contentObj);
 
-            // Check if page exists to determine summary
+            // Determine edit summary
             $isNew = !$wikiPage->exists();
-            $summary = $isNew ? "Creating chat log for session $safeSessionId" : "Updating chat log for session $safeSessionId";
+            $summary = $isNew
+                ? "Creating chat log for session $safeSessionId"
+                : "Updating chat log for session $safeSessionId";
 
+            // Save revision with correct MW comment object
             $updater->saveRevision(
-                \MediaWiki\CommentFormatter\CommentParser::newUnformatted($summary),
-                EDIT_INTERNAL // Minor flag or internal flag
+                CommentStoreComment::newUnsavedComment($summary),
+                EDIT_INTERNAL | EDIT_SUPPRESS_RC
             );
 
             $status = $updater->getStatus();
-
             if (!$status->isOK()) {
-                $this->dieWithError($status->getMessage()->getKey());
+                // Surface underlying MW error message
+                $msg = $status->getMessage() ? $status->getMessage()->getKey() : 'apierror-unknown';
+                $this->dieWithError($msg);
             }
 
+            // ---------------------------------------------------------
+            // Success output
+            // ---------------------------------------------------------
             $result = [
                 'success' => true,
                 'title' => $title->getPrefixedText(),
-                'url' => $title->getFullURL()
+                'url' => $title->getFullURL(),
             ];
 
             $this->getResult()->addValue(null, $this->getModuleName(), $result);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            // Let MW handle structured exception formatting
             $this->dieWithException($e);
         }
     }
 
-    public function getAllowedParams()
+    /**
+     * @inheritDoc
+     */
+    public function getAllowedParams(): array
     {
         return [
             'session_id' => [
@@ -91,11 +152,16 @@ class ApiMWAssistantSaveLog extends ApiBase
             'content' => [
                 self::PARAM_TYPE => 'string',
                 self::PARAM_REQUIRED => true,
-            ]
+            ],
         ];
     }
 
-    public function needsToken()
+    /**
+     * Requires CSRF token for all UI-originated requests.
+     *
+     * @return string
+     */
+    public function needsToken(): string
     {
         return 'csrf';
     }

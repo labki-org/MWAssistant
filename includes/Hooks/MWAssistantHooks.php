@@ -3,27 +3,49 @@
 namespace MWAssistant\Hooks;
 
 use MediaWiki\Output\OutputPage;
+use MediaWiki\Request\WebRequest;
 use Skin;
 
+/**
+ * Handles UI integration for MWAssistant.
+ *
+ * - Loads global search bar module for logged-in users
+ * - Loads chat/editor integration only on edit pages
+ */
 class MWAssistantHooks
 {
 
+    /**
+     * Add ResourceLoader modules when rendering a page.
+     *
+     * @param OutputPage $out
+     * @param Skin $skin
+     */
     public static function onBeforePageDisplay(OutputPage $out, Skin $skin): void
     {
-        if (!$out->getUser()->isRegistered()) {
-            return;
+
+        $user = $out->getUser();
+        if (!$user->isRegistered()) {
+            return; // Avoid providing UI to anonymous users
         }
 
-        // Always load the global module for registered users (search bar integration)
+        // Global assistant module (search bar integration, shared UI)
         $out->addModules(['ext.mwassistant.global']);
 
         $title = $out->getTitle();
-        // Check if we are on an edit page.
-        // 'action=edit' or 'action=submit' (often 'submit' when previewing).
-        // Using Action::getActionName is better but direct request check works for 'edit' param typically.
-        // We do NOT check isContentPage() because we want this on User pages, Templates, etc.
-        $action = $out->getRequest()->getVal('action');
-        if ($title && ($action === 'edit' || $action === 'submit')) {
+        if (!$title) {
+            return;
+        }
+
+        // Determine whether we are on an edit interface
+        $request = $out->getRequest();
+        $action = $request instanceof WebRequest
+            ? $request->getVal('action')
+            : null;
+
+        // 'edit' → normal edit mode
+        // 'submit' → edit preview or post-edit confirmation
+        if ($action === 'edit' || $action === 'submit') {
             $out->addModules(['ext.mwassistant.editor']);
         }
     }
