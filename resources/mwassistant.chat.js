@@ -1,226 +1,321 @@
+/**
+ * MWAssistant Chat Interface
+ *
+ * Provides:
+ *  - Chat-style UI
+ *  - Markdown-safe rendering
+ *  - Code block wrappers with copy button
+ *  - Session handling
+ *  - Clean async request/response pipeline
+ *
+ * This file intentionally has no business logic.
+ * It only handles the user interface & MediaWiki API requests.
+ */
 (function (mw, $) {
-    var api = new mw.Api();
 
     /**
-     * MWAssistantChat Class
-     * @param {Object} config
-     * @param {jQuery} config.$container Container element
-     * @param {string} [config.sessionId]
-     * @param {Array} [config.systemPrompt] Array of message objects
-     * @param {Function} [config.getExtraContext] Function returning string/obj to append to user message (invisible to user, system instruction)
+     * Utility: Generate UUID v4 (browser-safe)
      */
-    function MWAssistantChat(config) {
-        this.$container = config.$container;
-        this.sessionId = config.sessionId || this.generateUUID();
-        this.systemPrompt = config.systemPrompt || [];
-        this.getExtraContext = config.getExtraContext || function () { return null; };
-
-        this.renderUI();
-        this.bindEvents();
-    }
-
-    MWAssistantChat.prototype.generateUUID = function () {
+    function generateUUID() {
         return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : ((r & 0x3) | 0x8);
             return v.toString(16);
         });
-    };
+    }
 
-    MWAssistantChat.prototype.renderUI = function () {
-        var html =
-            '<div class="mwassistant-chat">' +
-            '<div class="mwassistant-chat-header">' +
-            '<h2>MWAssistant</h2>' +
-            '<span class="mwassistant-log-notice" id="mwassistant-chat-status" title="Session: ' + this.sessionId + '">Chat is being logged</span>' +
-            '</div>' +
-            '<div class="mwassistant-chat-log" id="mwassistant-chat-log"></div>' +
-            '<div class="mwassistant-chat-input">' +
-            '<textarea id="mwassistant-chat-input-text" rows="3" placeholder="Ask for help..."></textarea>' +
-            '<button id="mwassistant-chat-send">Send</button>' +
-            '</div>' +
-            '</div>';
-        this.$container.html(html);
-    };
+    /**
+     * Utility: Sleep helper (future streaming-ready)
+     */
+    function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
 
-    MWAssistantChat.prototype.parseMarkdown = function (text) {
-        // 1. Escape HTML to prevent XSS
-        var clean = $('<div>').text(text).html();
+    /**
+     * Chat Class
+     */
+    class MWAssistantChat {
 
-        // Placeholder for code blocks
-        var codeBlocks = [];
+        /**
+         * @param {Object} config
+         * @param {jQuery} config.$container
+         * @param {string} [config.sessionId]
+         * @param {Array} [config.systemPrompt]
+         * @param {Function} [config.getExtraContext]
+         */
+        constructor(config) {
+            this.$container = config.$container;
+            this.sessionId = config.sessionId || generateUUID();
+            this.systemPrompt = config.systemPrompt || [];
+            this.getExtraContext = config.getExtraContext || (() => null);
 
-        // 2. Extract Code blocks: ```code```
-        clean = clean.replace(/```([\s\S]*?)```/g, function (match, code) {
-            code = code.trim();
-            // Wrap in a relative container with a copy button
-            var html = '<div class="mwassistant-code-wrapper">' +
-                '<button class="mwassistant-copy-btn" title="Copy code">Copy</button>' +
-                '<pre class="mwassistant-code-block"><code>' + code + '</code></pre>' +
-                '</div>';
-            codeBlocks.push(html);
-            return '___MWASSISTANT_CODE_BLOCK_' + (codeBlocks.length - 1) + '___';
-        });
+            this.mwApi = new mw.Api();
 
-        // 3. Inline code: `code`
-        clean = clean.replace(/`([^`]+)`/g, function (match, code) {
-            return '<code class="mwassistant-inline-code">' + code + '</code>';
-        });
-
-        // 4. Bold: **text**
-        clean = clean.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
-
-        // 5. Markdown links: [text](url)
-        clean = clean.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
-
-        // 6. Wiki links: [[Page Title]] or [[Page Title|Label]]
-        clean = clean.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, function (match, page, label) {
-            var url = mw.util.getUrl(page);
-            return '<a href="' + url + '" title="' + page + '">' + (label || page) + '</a>';
-        });
-
-        // 7. Restore code blocks
-        clean = clean.replace(/___MWASSISTANT_CODE_BLOCK_(\d+)___/g, function (match, index) {
-            return codeBlocks[parseInt(index, 10)];
-        });
-
-        return clean;
-    };
-
-    MWAssistantChat.prototype.appendMessage = function (role, content) {
-        var $log = this.$container.find('#mwassistant-chat-log');
-        var cls = role === 'user' ? 'mwassistant-msg-user' : 'mwassistant-msg-assistant';
-        var $msg = $('<div>').addClass('mwassistant-msg ' + cls);
-        $msg.html(this.parseMarkdown(content));
-        $log.append($msg);
-        $log.scrollTop($log[0].scrollHeight);
-    };
-
-    MWAssistantChat.prototype.bindEvents = function () {
-        var self = this;
-        this.$container.find('#mwassistant-chat-send').on('click', function () { self.sendMessage(); });
-        this.$container.find('#mwassistant-chat-input-text').on('keypress', function (e) {
-            if (e.which === 13 && !e.shiftKey) {
-                e.preventDefault();
-                self.sendMessage();
-            }
-        });
-
-        // Use delegation for dynamic copy buttons
-        this.$container.on('click', '.mwassistant-copy-btn', function () {
-            var $btn = $(this);
-            var code = $btn.siblings('pre').text(); // Get raw text from pre
-
-            // Clipboard API or fallback
-            if (navigator.clipboard) {
-                navigator.clipboard.writeText(code).then(function () {
-                    var original = $btn.text();
-                    $btn.text('Copied!');
-                    setTimeout(function () { $btn.text(original); }, 2000);
-                }).catch(function (err) {
-                    console.error('Failed to copy: ', err);
-                    $btn.text('Error');
-                });
-            } else {
-                // Fallback for older browsers / insecure context
-                var textArea = document.createElement("textarea");
-                textArea.value = code;
-                document.body.appendChild(textArea);
-                textArea.select();
-                try {
-                    document.execCommand('copy');
-                    $btn.text('Copied!');
-                } catch (err) {
-                    $btn.text('Error');
-                }
-                document.body.removeChild(textArea);
-                setTimeout(function () { $btn.text('Copy'); }, 2000);
-            }
-        });
-    };
-
-    MWAssistantChat.prototype.sendMessage = function () {
-        var $input = this.$container.find('#mwassistant-chat-input-text');
-        var text = $input.val().trim();
-        if (!text) return;
-
-        $input.val('');
-        this.appendMessage('user', text);
-
-        var messages = [];
-
-        if (this.systemPrompt && this.systemPrompt.length > 0) {
-            messages = messages.concat(this.systemPrompt);
-            this.systemPrompt = [];
+            this.renderUI();
+            this.bindEvents();
         }
 
-        var extraContext = this.getExtraContext();
-        if (extraContext) {
-            messages.push({ role: 'system', content: 'Context:\n' + extraContext });
+        /* ------------------------------------------------------------------
+         * UI Rendering
+         * ------------------------------------------------------------------ */
+
+        renderUI() {
+            const html = `
+                <div class="mwassistant-chat">
+                    <div class="mwassistant-chat-header">
+                        <h2>MWAssistant</h2>
+                        <span 
+                            class="mwassistant-log-notice"
+                            id="mwassistant-chat-status"
+                            title="Session: ${this.sessionId}"
+                        >Chat is being logged</span>
+                    </div>
+
+                    <div class="mwassistant-chat-log" id="mwassistant-chat-log"></div>
+
+                    <div class="mwassistant-chat-input">
+                        <textarea 
+                            id="mwassistant-chat-input-text" 
+                            rows="3" 
+                            placeholder="Ask for help..."
+                        ></textarea>
+                        <button id="mwassistant-chat-send">Send</button>
+                    </div>
+                </div>
+            `;
+
+            this.$container.html(html);
         }
 
-        messages.push({ role: 'user', content: text });
+        /* ------------------------------------------------------------------
+         * Markdown Parser (Safe)
+         * ------------------------------------------------------------------ */
 
-        var payload = {
-            action: 'mwassistant-chat',
-            format: 'json',
-            messages: JSON.stringify(messages),
-            session_id: this.sessionId,
-            token: mw.user.tokens.get('csrfToken')
-        };
+        parseMarkdown(raw) {
+            if (!raw) return "";
 
-        var $btn = this.$container.find('#mwassistant-chat-send');
-        $btn.prop('disabled', true);
+            // Escape HTML – prevents XSS entirely.
+            let clean = $('<div>').text(raw).html();
 
-        var self = this;
-        api.post(payload)
-            .done(function (data) {
-                var res = data['mwassistant-chat'];
-                if (res && res.log_info && res.log_info.url) {
-                    var $status = self.$container.find('#mwassistant-chat-status');
-                    if ($status.is('span')) {
-                        $status.replaceWith('<a href="' + res.log_info.url + '" target="_blank" class="mwassistant-log-notice" id="mwassistant-chat-status">Logs auto-saved</a>');
-                    } else {
-                        $status.attr('href', res.log_info.url);
-                    }
-                }
+            const codeBlocks = [];
 
-                if (res && res.messages) {
-                    var last = res.messages[res.messages.length - 1];
-                    self.appendMessage(last.role, last.content);
-                } else if (res && res.error) {
-                    self.appendMessage('assistant', 'Error: ' + res.message);
-                } else {
-                    self.appendMessage('assistant', 'Error: malformed response.');
-                }
-            })
-            .fail(function (code, result) {
-                var msg = 'Error: request failed.';
-                if (result && result.error && result.error.info) {
-                    msg += ' ' + result.error.info;
-                }
-                self.appendMessage('assistant', msg);
-            })
-            .always(function () {
-                $btn.prop('disabled', false);
+            // Extract fenced blocks
+            clean = clean.replace(/```([\s\S]*?)```/g, (match, code) => {
+                const safe = $('<div>').text(code).text().trim();
+                const index = codeBlocks.length;
+
+                codeBlocks.push(`
+                    <div class="mwassistant-code-wrapper">
+                        <button class="mwassistant-copy-btn" title="Copy code">Copy</button>
+                        <pre class="mwassistant-code-block"><code>${safe}</code></pre>
+                    </div>
+                `);
+
+                return `___MWASSISTANT_CODE_BLOCK_${index}___`;
             });
-    };
 
-    // Expose globally
+            // Inline code
+            clean = clean.replace(/`([^`]+)`/g, (_, txt) => {
+                const safe = $('<div>').text(txt).html();
+                return `<code class="mwassistant-inline-code">${safe}</code>`;
+            });
+
+            // Bold
+            clean = clean.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+
+            // Markdown links
+            clean = clean.replace(
+                /\[([^\]]+)\]\(([^)]+)\)/g,
+                (_, label, url) => `<a href="${url}" target="_blank" rel="noopener">${label}</a>`
+            );
+
+            // Wiki links
+            clean = clean.replace(
+                /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+                (_, page, label) => {
+                    const url = mw.util.getUrl(page);
+                    return `<a href="${url}" title="${page}">${label || page}</a>`;
+                }
+            );
+
+            // Restore code blocks
+            clean = clean.replace(/___MWASSISTANT_CODE_BLOCK_(\d+)___/g, (_, idx) => {
+                return codeBlocks[parseInt(idx, 10)];
+            });
+
+            return clean;
+        }
+
+        /* ------------------------------------------------------------------
+         * Message Rendering
+         * ------------------------------------------------------------------ */
+
+        appendMessage(role, content) {
+            const $log = this.$container.find('#mwassistant-chat-log');
+            const cls = role === 'user' ? 'mwassistant-msg-user' : 'mwassistant-msg-assistant';
+
+            const $msg = $('<div>')
+                .addClass(`mwassistant-msg ${cls}`)
+                .html(this.parseMarkdown(content));
+
+            $log.append($msg);
+
+            // Auto-scroll to bottom
+            $log.scrollTop($log.prop('scrollHeight'));
+        }
+
+        /* ------------------------------------------------------------------
+         * Event Binding
+         * ------------------------------------------------------------------ */
+
+        bindEvents() {
+            const $root = this.$container;
+
+            // Send button
+            $root.on('click', '#mwassistant-chat-send', () => this.sendMessage());
+
+            // Enter key = send
+            $root.on('keypress', '#mwassistant-chat-input-text', (e) => {
+                if (e.which === 13 && !e.shiftKey) {
+                    e.preventDefault();
+                    this.sendMessage();
+                }
+            });
+
+            // Copy buttons (delegated)
+            $root.on('click', '.mwassistant-copy-btn', function () {
+                const $btn = $(this);
+                const code = $btn.siblings('pre').text();
+
+                navigator.clipboard?.writeText(code).then(() => {
+                    $btn.text('Copied!');
+                    setTimeout(() => $btn.text('Copy'), 1500);
+                }).catch(() => {
+                    $btn.text('Error');
+                    setTimeout(() => $btn.text('Copy'), 1500);
+                });
+            });
+        }
+
+        /* ------------------------------------------------------------------
+         * Message Sending
+         * ------------------------------------------------------------------ */
+
+        async sendMessage() {
+            const $input = this.$container.find('#mwassistant-chat-input-text');
+            const text = $input.val().trim();
+            if (!text) return;
+
+            $input.val('');
+            this.appendMessage('user', text);
+
+            const payload = this.buildPayload(text);
+
+            const $btn = this.$container.find('#mwassistant-chat-send');
+            $btn.prop('disabled', true);
+
+            try {
+                const data = await this.mwApi.post(payload);
+                this.handleResponse(data);
+            } catch (err) {
+                console.error("MWAssistant API error:", err);
+                this.appendMessage('assistant', 'Error: failed to reach server.');
+            } finally {
+                $btn.prop('disabled', false);
+            }
+        }
+
+        /* ------------------------------------------------------------------
+         * Request Payload Assembly
+         * ------------------------------------------------------------------ */
+
+        buildPayload(userText) {
+            const messages = [];
+
+            // First-time system prompt gets injected only once
+            if (this.systemPrompt.length > 0) {
+                messages.push(...this.systemPrompt);
+                this.systemPrompt = [];
+            }
+
+            // Optional extra context (invisible system layer)
+            const extra = this.getExtraContext();
+            if (extra) {
+                messages.push({
+                    role: 'system',
+                    content: 'Context:\n' + extra
+                });
+            }
+
+            // User message
+            messages.push({
+                role: 'user',
+                content: userText
+            });
+
+            return {
+                action: 'mwassistant-chat',
+                format: 'json',
+                messages: JSON.stringify(messages),
+                session_id: this.sessionId,
+                token: mw.user.tokens.get('csrfToken')
+            };
+        }
+
+        /* ------------------------------------------------------------------
+         * Response Handling
+         * ------------------------------------------------------------------ */
+
+        handleResponse(data) {
+            const result = data['mwassistant-chat'];
+
+            if (!result) {
+                this.appendMessage('assistant', 'Error: malformed response.');
+                return;
+            }
+
+            // Add link to log if present
+            if (result.log_info?.url) {
+                const $status = this.$container.find('#mwassistant-chat-status');
+                const linkHtml =
+                    `<a href="${result.log_info.url}" target="_blank" class="mwassistant-log-notice" id="mwassistant-chat-status">Logs auto-saved</a>`;
+
+                // Replace span with link, or update existing link
+                if ($status.is('span')) {
+                    $status.replaceWith(linkHtml);
+                } else {
+                    $status.attr('href', result.log_info.url);
+                }
+            }
+
+            // Show assistant message
+            if (result.messages?.length) {
+                const last = result.messages[result.messages.length - 1];
+                this.appendMessage(last.role, last.content);
+            } else if (result.error) {
+                this.appendMessage('assistant', 'Error: ' + (result.message || 'Unknown'));
+            } else {
+                this.appendMessage('assistant', 'Error: malformed response.');
+            }
+        }
+    }
+
+    /* ----------------------------------------------------------------------
+     * Export & Auto-init
+     * ---------------------------------------------------------------------- */
+
     mw.mwAssistant = mw.mwAssistant || {};
     mw.mwAssistant.Chat = MWAssistantChat;
 
-    // Auto-init for Special Page
     $(function () {
-        if ($('#mwassistant-chat-container').length) {
-            new MWAssistantChat({
-                $container: $('#mwassistant-chat-container')
-            });
+        const $root = $('#mwassistant-chat-container');
+        if ($root.length) {
+            const chat = new MWAssistantChat({ $container: $root });
 
-            // Check for 'q' parameter in URL to pre-fill the chat
-            var preQuery = mw.util.getParamValue('q');
-            if (preQuery) {
-                var $input = $('#mwassistant-chat-input-text');
-                $input.val(preQuery);
+            // Pre-fill message from ?q= param
+            const q = mw.util.getParamValue('q');
+            if (q) {
+                $('#mwassistant-chat-input-text').val(q);
             }
         }
     });

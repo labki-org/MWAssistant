@@ -75,8 +75,16 @@
             "remoteExtPath": "MWAssistant"
         },
         "ext.mwassistant.embeddings": {
+            "scripts": [
+                "resources/mwassistant.embeddings.js"
+            ],
             "styles": [
                 "resources/mwassistant.embeddings.css"
+            ],
+            "dependencies": [
+                "mediawiki.widgets",
+                "oojs-ui-core",
+                "oojs-ui-widgets"
             ],
             "targets": [
                 "desktop",
