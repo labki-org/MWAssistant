@@ -13,7 +13,7 @@ use MediaWiki\User\UserIdentity;
  * Endpoint:
  *  - POST /search/    with JSON { "query": "<string>" }
  */
-class SearchClient
+class VectorSearchClient
 {
 
     /** @var HttpClient */

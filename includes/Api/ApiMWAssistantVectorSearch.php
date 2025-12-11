@@ -3,18 +3,18 @@
 namespace MWAssistant\Api;
 
 use MWAssistant\Api\ApiMWAssistantBase;
-use MWAssistant\MCP\SearchClient;
+use MWAssistant\MCP\VectorSearchClient;
 
 /**
- * API endpoint for sending search queries to the MCP server.
+ * API endpoint for sending vector search queries to the MCP server.
  *
  * Responsibilities:
  *  - Authenticate via inherited checkAccess() (JWT or session).
  *  - Validate incoming "query" input.
- *  - Forward search requests to SearchClient.
+ *  - Forward search requests to VectorSearchClient.
  *  - Return structured search results.
  */
-class ApiMWAssistantSearch extends ApiMWAssistantBase
+class ApiMWAssistantVectorSearch extends ApiMWAssistantBase
 {
 
     /**
@@ -45,7 +45,7 @@ class ApiMWAssistantSearch extends ApiMWAssistantBase
         // -------------------------------------------------------------
         // Send to MCP search backend
         // -------------------------------------------------------------
-        $client = new SearchClient();
+        $client = new VectorSearchClient();
         $result = $client->search($user, $query);
 
         // -------------------------------------------------------------
