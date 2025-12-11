@@ -33,10 +33,11 @@ class ChatClient
      * @param UserIdentity $user
      * @param array $messages List of message objects (role/content, etc.)
      * @param string|null $sessionId Optional session identifier for stateful chats
+     * @param string $context Chat context ('chat' or 'editor')
      *
      * @return array Normalized response body (or error descriptor)
      */
-    public function chat(UserIdentity $user, array $messages, ?string $sessionId = null): array
+    public function chat(UserIdentity $user, array $messages, ?string $sessionId = null, string $context = 'chat'): array
     {
         $roles = $this->getUserRoles($user);
         $jwt = JWT::createMWToMCPToken($user, $roles, ['chat_completion']);
@@ -44,6 +45,7 @@ class ChatClient
         $payload = [
             'messages' => $messages,
             'max_tokens' => 512,
+            'context' => $context,
         ];
 
         if ($sessionId !== null && $sessionId !== '') {

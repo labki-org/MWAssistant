@@ -41,6 +41,7 @@ class ApiMWAssistantChat extends ApiMWAssistantBase
         // -------------------------------------------------------------
         $messages = json_decode($params['messages'], true);
         $sessionId = $params['session_id'] ?? null;
+        $context = $params['context'] ?? 'chat';
 
         if (!is_array($messages)) {
             $this->dieWithError(
@@ -54,7 +55,7 @@ class ApiMWAssistantChat extends ApiMWAssistantBase
         // -------------------------------------------------------------
         $user = $this->getUser();
         $client = new ChatClient();
-        $response = $client->chat($user, $messages, $sessionId);
+        $response = $client->chat($user, $messages, $sessionId, $context);
 
         // -------------------------------------------------------------
         // Optional logging of successful assistant reply
@@ -223,6 +224,10 @@ class ApiMWAssistantChat extends ApiMWAssistantBase
             'session_id' => [
                 self::PARAM_TYPE => 'string',
                 self::PARAM_REQUIRED => false,
+            ],
+            'context' => [
+                self::PARAM_TYPE => 'string',
+                self::PARAM_REQUIRED => false, // Default handled in execute()
             ],
         ];
     }

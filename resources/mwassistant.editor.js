@@ -202,17 +202,7 @@
 
             this.chatInstance = new mw.mwAssistant.Chat({
                 $container: $chatContainer,
-                systemPrompt: [
-                    {
-                        role: "system",
-                        content:
-                            "You are an intelligent MediaWiki assistant helping a user edit a wiki page. " +
-                            "Your PRIMARY goal is to provide specific MediaWiki syntax help—templates, categories, " +
-                            "Semantic MediaWiki queries, wikitext formatting, etc. " +
-                            "Provide correct wikitext examples the user can copy. " +
-                            "DO NOT attempt to edit the page directly via tool calls."
-                    }
-                ],
+                context: 'editor',
                 getExtraContext: () => {
                     const $textarea = $("#wpTextbox1");
                     const text = $textarea.val() || "";

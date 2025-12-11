@@ -40,13 +40,13 @@
          * @param {Object} config
          * @param {jQuery} config.$container
          * @param {string} [config.sessionId]
-         * @param {Array} [config.systemPrompt]
+         * @param {string} [config.context] 'chat' or 'editor'
          * @param {Function} [config.getExtraContext]
          */
         constructor(config) {
             this.$container = config.$container;
             this.sessionId = config.sessionId || generateUUID();
-            this.systemPrompt = config.systemPrompt || [];
+            this.context = config.context || 'chat';
             this.getExtraContext = config.getExtraContext || (() => null);
 
             this.mwApi = new mw.Api();
@@ -232,12 +232,6 @@
         buildPayload(userText) {
             const messages = [];
 
-            // First-time system prompt gets injected only once
-            if (this.systemPrompt.length > 0) {
-                messages.push(...this.systemPrompt);
-                this.systemPrompt = [];
-            }
-
             // Optional extra context (invisible system layer)
             const extra = this.getExtraContext();
             if (extra) {
@@ -258,6 +252,7 @@
                 format: 'json',
                 messages: JSON.stringify(messages),
                 session_id: this.sessionId,
+                context: this.context,
                 token: mw.user.tokens.get('csrfToken')
             };
         }
