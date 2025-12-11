@@ -77,7 +77,7 @@
                         <textarea 
                             id="mwassistant-chat-input-text" 
                             rows="3" 
-                            placeholder="Ask for help..."
+                            placeholder="What's on your mind?"
                         ></textarea>
                         <button id="mwassistant-chat-send">Send</button>
                     </div>

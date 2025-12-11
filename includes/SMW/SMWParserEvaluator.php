@@ -24,7 +24,7 @@ class SMWParserEvaluator
     public function evaluate(UserIdentity $user, string $queryArgs): string
     {
         // Construct the full parser function
-        $wikitext = "{{#ask: " . $queryArgs . "}}";
+        $wikitext = "{{#ask:" . trim($queryArgs) . "}}";
 
         // Parse it using the standard MediaWiki parser
         $parser = MediaWikiServices::getInstance()->getParser();
