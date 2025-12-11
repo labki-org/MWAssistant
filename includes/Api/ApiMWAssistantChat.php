@@ -69,7 +69,8 @@ class ApiMWAssistantChat extends ApiMWAssistantBase
                     $user,
                     $sessionId,
                     $messages,
-                    $assistantReply
+                    $assistantReply,
+                    $response['used_tools'] ?? []
                 );
 
                 if ($logInfo) {
@@ -107,7 +108,8 @@ class ApiMWAssistantChat extends ApiMWAssistantBase
         $user,
         ?string $sessionId,
         array $inputMessages,
-        string $assistantResponse
+        string $assistantResponse,
+        array $usedTools = []
     ): ?array {
 
         // -------------------------------------------------------------
@@ -151,9 +153,33 @@ class ApiMWAssistantChat extends ApiMWAssistantBase
             $wikiPage = $services->getWikiPageFactory()->newFromTitle($title);
             $updater = $wikiPage->newPageUpdater($user);
 
+            // Escape Category and Property links to prevent categorization/assignment
+            // e.g. [[Category:Foo]] -> [[:Category:Foo]]
+            $safeAssistantResponse = preg_replace('/\[\[\s*(Category|Property)\s*:/i', '[[:$1:', $assistantResponse);
+            $safeAssistantResponse = $this->convertMarkdownToWikitext($safeAssistantResponse);
+
+            // Format tool usage if present
+            $toolLog = '';
+            if (!empty($usedTools)) {
+                $toolRows = [];
+                foreach ($usedTools as $tool) {
+                    $name = htmlspecialchars($tool['name'] ?? 'unknown');
+                    $args = htmlspecialchars(json_encode($tool['args'] ?? []));
+                    $toolRows[] = "* '''$name''': <code style=\"font-size:0.9em\">$args</code>";
+                }
+                $toolContent = implode("\n", $toolRows);
+
+                $toolLog = "\n{| class=\"mw-collapsible mw-collapsed wikitable\" style=\"width:100%; margin-top:0.5em;\"\n"
+                    . "! Tool Usage\n"
+                    . "|-\n"
+                    . "| \n{$toolContent}\n"
+                    . "|}\n";
+            }
+
             // Build new entry
-            $entry = "\n* '''User:''' {$lastUserMsg}\n"
-                . "* '''Assistant:''' {$assistantResponse}\n";
+            $entry = "\n'''User:'''\n{$lastUserMsg}\n\n"
+                . "'''Assistant:'''\n{$safeAssistantResponse}\n"
+                . $toolLog . "\n\n----\n";
 
             $contentText = '';
 
@@ -240,5 +266,26 @@ class ApiMWAssistantChat extends ApiMWAssistantBase
     public function needsToken(): string
     {
         return 'csrf';
+    }
+
+    /**
+     * Convert common Markdown syntax to Wikitext.
+     *
+     * @param string $text
+     * @return string
+     */
+    private function convertMarkdownToWikitext(string $text): string
+    {
+        // Bold: **text** -> '''text'''
+        $text = str_replace('**', "'''", $text);
+
+        // Lists: - item -> * item
+        $text = preg_replace('/^-\s/m', '* ', $text);
+
+        // Headers: ### Header -> === Header ===
+        $text = preg_replace('/^###\s+(.*?)$/m', '=== $1 ===', $text);
+        $text = preg_replace('/^##\s+(.*?)$/m', '== $1 ==', $text);
+
+        return $text;
     }
 }

@@ -110,8 +110,7 @@
         "mwassistant-chat": "MWAssistant\\Api\\ApiMWAssistantChat",
         "mwassistant-search": "MWAssistant\\Api\\ApiMWAssistantVectorSearch",
         "mwassistant-keyword-search": "MWAssistant\\Api\\ApiMWAssistantKeywordSearch",
-        "mwassistant-smw": "MWAssistant\\Api\\ApiMWAssistantSMW",
-        "mwassistant-savelog": "MWAssistant\\Api\\ApiMWAssistantSaveLog"
+        "mwassistant-smw": "MWAssistant\\Api\\ApiMWAssistantSMW"
     },
     "load_composer_autoloader": true,
     "url": "https://www.mediawiki.org/wiki/Extension:MWAssistant",
