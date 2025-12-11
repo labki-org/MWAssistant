@@ -33,6 +33,7 @@
                 "mediawiki.util"
             ],
             "targets": [
+                "desktop",
                 "mobile"
             ],
             "localBasePath": "",
@@ -67,6 +68,7 @@
                 "jquery"
             ],
             "targets": [
+                "desktop",
                 "mobile"
             ],
             "localBasePath": "",
@@ -85,6 +87,7 @@
                 "oojs-ui-widgets"
             ],
             "targets": [
+                "desktop",
                 "mobile"
             ],
             "localBasePath": "",
