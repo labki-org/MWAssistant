@@ -11,6 +11,9 @@ $wgMWAssistantMCPBaseUrl = 'http://host.docker.internal:8000';
 $wgMWAssistantEnabled = true;
 $wgMWAssistantWikiId = 'test-wiki';
 
+// Fix autolinks to use correct port
+$wgServer = 'http://localhost:8890';
+
 // Logging
 $wgDebugLogGroups['mwassistant'] = '/var/log/mediawiki/mwassistant.log';
 $wgShowExceptionDetails = true;

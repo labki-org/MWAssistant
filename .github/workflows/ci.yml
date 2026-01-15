@@ -32,40 +32,49 @@ jobs:
     name: Extension Load Test
     runs-on: ubuntu-latest
     
-    services:
-      db:
-        image: mariadb:10.11
-        env:
-          MARIADB_DATABASE: labki
-          MARIADB_USER: labki
-          MARIADB_PASSWORD: labki_pass
-          MARIADB_ROOT_PASSWORD: root_pass
-        options: >-
-          --health-cmd="mysqladmin ping"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=3
-    
     steps:
       - uses: actions/checkout@v4
       
-      - name: Start MediaWiki
+      - name: Start MediaWiki with docker-compose
         run: |
-          docker compose up -d wiki
-          sleep 30
-      
+          docker compose up -d
+          echo "Waiting for MediaWiki to be ready..."
+          
+      - name: Wait for wiki to be ready
+        run: |
+          # Wait for wiki container to be healthy (up to 120 seconds)
+          for i in {1..24}; do
+            if docker compose exec -T wiki php -r "echo 'PHP OK';" 2>/dev/null; then
+              echo "Wiki container is ready"
+              break
+            fi
+            echo "Waiting for wiki... ($i/24)"
+            sleep 5
+          done
+          
       - name: Check extension loaded
         run: |
-          docker compose exec -T wiki php maintenance/run.php eval \
-            'echo ExtensionRegistry::getInstance()->isLoaded("MWAssistant") ? "SUCCESS: MWAssistant loaded" : "FAIL: Extension not loaded";' \
-            | grep -q "SUCCESS"
+          result=$(docker compose exec -T wiki php maintenance/run.php eval \
+            'echo ExtensionRegistry::getInstance()->isLoaded("MWAssistant") ? "SUCCESS" : "FAIL";' 2>&1) || true
+          echo "Result: $result"
+          echo "$result" | grep -q "SUCCESS"
       
       - name: Check special page exists
         run: |
-          docker compose exec -T wiki php maintenance/run.php eval \
-            'echo class_exists("MWAssistant\\Special\\SpecialMWAssistant") ? "SUCCESS" : "FAIL";' \
-            | grep -q "SUCCESS"
+          result=$(docker compose exec -T wiki php maintenance/run.php eval \
+            'echo class_exists("MWAssistant\\Special\\SpecialMWAssistant") ? "SUCCESS" : "FAIL";' 2>&1) || true
+          echo "Result: $result"
+          echo "$result" | grep -q "SUCCESS"
+      
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          echo "=== Wiki container logs ==="
+          docker compose logs wiki
+          echo "=== DB container logs ==="
+          docker compose logs db
       
       - name: Cleanup
         if: always()
         run: docker compose down -v
+
