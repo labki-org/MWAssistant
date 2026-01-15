@@ -133,6 +133,10 @@
         },
         "MWAssistantJWTTTL": {
             "value": 30
+        },
+        "MWAssistantWikiId": {
+            "value": "",
+            "description": "Unique identifier for this wiki instance (required for multi-tenant MCP server)"
         }
     },
     "manifest_version": 2

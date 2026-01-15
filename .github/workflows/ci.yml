@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  lint:
+    name: PHP Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+          extensions: json, mbstring
+          tools: composer
+      
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress
+      
+      - name: Syntax check
+        run: |
+          find includes -name "*.php" -exec php -l {} \;
+
+  extension-test:
+    name: Extension Load Test
+    runs-on: ubuntu-latest
+    
+    services:
+      db:
+        image: mariadb:10.11
+        env:
+          MARIADB_DATABASE: labki
+          MARIADB_USER: labki
+          MARIADB_PASSWORD: labki_pass
+          MARIADB_ROOT_PASSWORD: root_pass
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Start MediaWiki
+        run: |
+          docker compose up -d wiki
+          sleep 30
+      
+      - name: Check extension loaded
+        run: |
+          docker compose exec -T wiki php maintenance/run.php eval \
+            'echo ExtensionRegistry::getInstance()->isLoaded("MWAssistant") ? "SUCCESS: MWAssistant loaded" : "FAIL: Extension not loaded";' \
+            | grep -q "SUCCESS"
+      
+      - name: Check special page exists
+        run: |
+          docker compose exec -T wiki php maintenance/run.php eval \
+            'echo class_exists("MWAssistant\\Special\\SpecialMWAssistant") ? "SUCCESS" : "FAIL";' \
+            | grep -q "SUCCESS"
+      
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v

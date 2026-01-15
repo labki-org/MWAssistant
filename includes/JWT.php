@@ -32,6 +32,7 @@ class JWT
     ): string {
         $secret = Config::getJWTMWToMCPSecret();
         $ttl = Config::getJWTTTL();
+        $wikiId = Config::getWikiId();
 
         $now = time();
         $exp = $now + $ttl;
@@ -52,6 +53,7 @@ class JWT
             'exp' => $exp,
             'jti' => bin2hex(random_bytes(8)),  // Optional but recommended
             'user' => $username,
+            'wiki_id' => $wikiId,
             'roles' => array_values($roles),
             'scope' => array_values($scopes),
         ];

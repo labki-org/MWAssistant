@@ -130,6 +130,19 @@ class Config
         return (bool) self::cfg()->get('MWAssistantAutoEmbed');
     }
 
+    /**
+     * Unique identifier for this wiki instance (required for multi-tenant MCP).
+     *
+     * @return string Non-empty wiki identifier
+     */
+    public static function getWikiId(): string
+    {
+        return self::requireNonEmptyString(
+            self::cfg()->get('MWAssistantWikiId'),
+            'MWAssistantWikiId'
+        );
+    }
+
     // -------------------------------------------------------------------------
     // Validation Helpers
     // -------------------------------------------------------------------------
