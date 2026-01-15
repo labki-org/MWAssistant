@@ -56,6 +56,7 @@ class JWT
             'wiki_id' => $wikiId,
             'roles' => array_values($roles),
             'scope' => array_values($scopes),
+            'allowed_namespaces' => NamespacePermissions::getReadableNamespaces($user),
         ];
 
         $encodedHeader = self::safeJsonBase64($header, 'JWT header');
