@@ -143,6 +143,27 @@ class Config
         );
     }
 
+    /**
+     * Publicly accessible API URL for this wiki.
+     * Used by the MCP server to call back for page content/validation.
+     *
+     * @return string
+     */
+    public static function getWikiApiUrl(): string
+    {
+        $url = self::cfg()->get('MWAssistantWikiApiUrl');
+
+        if (is_string($url) && trim($url) !== '') {
+            return $url;
+        }
+
+        // Fallback: Attempt to construct from server config
+        $server = self::cfg()->get('Server');
+        $scriptPath = self::cfg()->get('ScriptPath');
+
+        return $server . $scriptPath . '/api.php';
+    }
+
     // -------------------------------------------------------------------------
     // Validation Helpers
     // -------------------------------------------------------------------------
