@@ -53,6 +53,7 @@ class JWT
             'exp' => $exp,
             'jti' => bin2hex(random_bytes(8)),  // Optional but recommended
             'user' => $username,
+            'user_id' => $user->getId(),
             'wiki_id' => $wikiId,
             'roles' => array_values($roles),
             'scope' => array_values($scopes),
