@@ -108,6 +108,7 @@
     ],
     "APIModules": {
         "mwassistant-chat": "MWAssistant\\Api\\ApiMWAssistantChat",
+        "mwassistant-sessions": "MWAssistant\\Api\\ApiMWAssistantSessions",
         "mwassistant-search": "MWAssistant\\Api\\ApiMWAssistantVectorSearch",
         "mwassistant-keyword-search": "MWAssistant\\Api\\ApiMWAssistantKeywordSearch",
         "mwassistant-smw": "MWAssistant\\Api\\ApiMWAssistantSMW",

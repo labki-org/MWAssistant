@@ -1,222 +1,352 @@
-.mwassistant-chat {
+/* Main Layout */
+.mwassistant-chat-root {
+    /* Container wrapper from Special page */
+    max-width: 1000px;
+    margin: 2em auto;
+}
+
+.mwassistant-layout {
+    display: flex;
+    height: 700px;
+    background-color: #fff;
     border: 1px solid #c8ccd1;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    max-width: 800px;
-    margin: 2em auto;
-    display: flex;
-    flex-direction: column;
-    height: 600px;
+    overflow: hidden;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Lato, Helvetica, Arial, sans-serif;
-    background-color: #fff;
 }
 
-.mwassistant-chat-header {
+/* Sidebar */
+.mwassistant-sidebar {
+    width: 260px;
+    background-color: #f0f2f5;
+    border-right: 1px solid #e0e0e0;
+    display: flex;
+    flex-direction: column;
+}
+
+.mwassistant-sidebar-header {
+    padding: 15px;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.mwassistant-new-chat {
+    width: 100%;
+    padding: 10px;
+    background-color: #36c;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background-color 0.2s;
+}
+
+.mwassistant-new-chat:hover {
+    background-color: #447ff5;
+}
+
+.mwassistant-icon {
+    font-size: 1.2em;
+    line-height: 1;
+}
+
+.mwassistant-session-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.mwassistant-session-item {
+    padding: 10px 12px;
+    border-radius: 6px;
+    cursor: pointer;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 10px 15px;
-    background-color: #f8f9fa;
+    transition: background-color 0.2s;
+    user-select: none;
+    group: relative;
+}
+
+.mwassistant-session-item:hover {
+    background-color: #e4e6eb;
+}
+
+.mwassistant-session-item.active {
+    background-color: #e8f0fe;
+    color: #1a73e8;
+}
+
+.mwassistant-session-info {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex: 1;
+    margin-right: 8px;
+}
+
+.mwassistant-session-title {
+    font-size: 0.9em;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #333;
+}
+
+.mwassistant-session-item.active .mwassistant-session-title {
+    color: #1a73e8;
+    font-weight: 600;
+}
+
+.mwassistant-session-date {
+    font-size: 0.75em;
+    color: #777;
+    margin-top: 2px;
+}
+
+.mwassistant-session-delete {
+    background: none;
+    border: none;
+    color: #999;
+    font-size: 1.2em;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+    border-radius: 4px;
+    opacity: 0;
+    transition: opacity 0.2s, color 0.2s;
+}
+
+.mwassistant-session-item:hover .mwassistant-session-delete {
+    opacity: 1;
+}
+
+.mwassistant-session-delete:hover {
+    color: #d93025;
+    background-color: rgba(217, 48, 37, 0.1);
+}
+
+.mwassistant-loading, .mwassistant-error, .mwassistant-empty {
+    text-align: center;
+    padding: 20px;
+    color: #666;
+    font-size: 0.9em;
+}
+
+.mwassistant-error {
+    color: #d93025;
+}
+
+/* Chat Area */
+.mwassistant-chat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background-color: #fff;
+    min-width: 0; /* Flexbox overflow fix */
+}
+
+.mwassistant-chat-header {
+    padding: 15px 20px;
     border-bottom: 1px solid #e0e0e0;
+    background-color: #fff;
 }
 
 .mwassistant-chat-header h2 {
     margin: 0;
-    font-size: 1.2em;
+    font-size: 1.1em;
+    font-weight: 600;
     border: none;
-}
-
-.mwassistant-log-notice {
-    font-size: 0.8em;
-    color: #555;
-    background: #e0e0e0;
-    padding: 3px 8px;
-    border-radius: 4px;
-    text-decoration: none;
-    transition: background 0.2s;
-}
-
-.mwassistant-log-notice:hover {
-    background: #d0d0d0;
-    color: #000;
-    text-decoration: none;
+    color: #202124;
 }
 
 .mwassistant-chat-log {
     flex: 1;
     overflow-y: auto;
-    padding: 1.5em;
-    background: #f8f9fa;
+    padding: 20px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 16px;
+    scroll-behavior: smooth;
 }
 
+.mwassistant-welcome {
+    text-align: center;
+    margin-top: 20%;
+    color: #5f6368;
+}
+
+.mwassistant-welcome p {
+    font-size: 1.1em;
+}
+
+/* Input Area - kept mostly same */
 .mwassistant-chat-input {
-    border-top: 1px solid #c8ccd1;
-    padding: 1em;
-    background: #fff;
-    border-bottom-left-radius: 8px;
-    border-bottom-right-radius: 8px;
+    padding: 20px;
+    border-top: 1px solid #e0e0e0;
     display: flex;
-    gap: 10px;
+    gap: 12px;
+    background-color: #fff;
 }
 
 .mwassistant-chat-input textarea {
     flex: 1;
-    border: 1px solid #a2a9b1;
-    border-radius: 4px;
-    padding: 8px;
-    resize: vertical;
+    border: 1px solid #dadce0;
+    border-radius: 6px;
+    padding: 12px;
+    resize: none; /* Auto-growth logic via JS would be nice, but fixed for now */
     font-family: inherit;
-    min-height: 40px;
+    font-size: 14px;
+    line-height: 1.5;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .mwassistant-chat-input textarea:focus {
-    border-color: #36c;
-    box-shadow: inset 0 0 0 1px #36c;
-    outline: none;
+    border-color: #1a73e8;
+    box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
 }
 
 .mwassistant-chat-input button {
-    background-color: #36c;
+    align-self: flex-end;
+    background-color: #1a73e8;
     color: #fff;
     border: none;
-    border-radius: 4px;
-    padding: 0 20px;
-    font-weight: bold;
+    border-radius: 6px;
+    padding: 10px 24px;
+    font-weight: 600;
     cursor: pointer;
-    transition: background-color 0.1s;
+    transition: background-color 0.2s;
+    height: 46px; /* Match textarea height roughly */
 }
 
 .mwassistant-chat-input button:hover {
-    background-color: #447ff5;
+    background-color: #1557b0;
 }
 
 .mwassistant-chat-input button:disabled {
-    background-color: #c8ccd1;
+    background-color: #dadce0;
+    color: #80868b;
     cursor: default;
 }
 
+/* Message Bubbles */
 .mwassistant-msg {
-    padding: 10px 16px;
-    border-radius: 18px;
+    padding: 12px 18px;
+    border-radius: 12px;
     line-height: 1.5;
     word-wrap: break-word;
-    max-width: 80%;
+    max-width: 85%;
     position: relative;
     font-size: 14px;
 }
 
 .mwassistant-msg-user {
     background-color: #e8f0fe;
-    color: #202124;
+    color: #1f1f1f;
     align-self: flex-end;
     border-bottom-right-radius: 4px;
+    margin-left: auto;
 }
 
 .mwassistant-msg-assistant {
-    background-color: #fff;
-    border: 1px solid #eaecf0;
-    color: #202124;
+    background-color: #f1f3f4;
+    color: #1f1f1f;
     align-self: flex-start;
     border-bottom-left-radius: 4px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    margin-right: auto;
 }
 
-/* Code Block Styling */
+/* Code Blocks & Tools - largely same as before, just slight color tweaks */
 .mwassistant-code-wrapper {
     position: relative;
-    margin: 8px 0;
+    margin: 10px 0;
 }
 
 .mwassistant-copy-btn {
     position: absolute;
-    top: 5px;
-    right: 5px;
-    background: #e1e4e8;
-    color: #24292e;
-    border: 1px solid #d1d5da;
+    top: 8px;
+    right: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 4px;
-    padding: 3px 8px;
+    padding: 4px 8px;
     font-size: 11px;
     cursor: pointer;
-    opacity: 0.6;
-    transition: opacity 0.2s, background 0.2s;
-    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.2s;
 }
 
-.mwassistant-copy-btn:hover {
+.mwassistant-code-wrapper:hover .mwassistant-copy-btn {
     opacity: 1;
-    background-color: #d1d5da;
 }
 
 .mwassistant-code-block {
     background-color: #282c34;
     color: #abb2bf;
-    padding: 25px 12px 12px 12px;
-    /* Extra top padding for button space */
+    padding: 16px;
     border-radius: 6px;
-    border: none;
     font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
     font-size: 13px;
-    line-height: 1.4;
+    line-height: 1.5;
     overflow-x: auto;
     margin: 0;
-    /* Wrapper handles margin */
     white-space: pre;
 }
 
 .mwassistant-code-block code {
-    background-color: transparent;
+    background: none;
     border: none;
-    color: inherit;
     padding: 0;
-    box-shadow: none;
+    color: inherit;
 }
 
 .mwassistant-inline-code {
-    background-color: rgba(27, 31, 35, 0.05);
-    padding: 0.2em 0.4em;
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 2px 5px;
     border-radius: 3px;
     font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
-    font-size: 85%;
+    font-size: 0.9em;
 }
 
-.mwassistant-msg-assistant .mwassistant-code-block {
-    border: none;
-}
-
-/* Tool Usage Messages */
+/* Tool Messages */
 .mwassistant-msg-tool {
-    background-color: transparent;
-    border: none;
+    background: none;
     padding: 0;
-    margin-bottom: 8px;
-    width: 100%;
     max-width: 100%;
+    margin-bottom: 8px;
 }
 
 .mwassistant-tool-details {
-    background-color: #f8f9fa;
-    border: 1px solid #e0e0e0;
+    background-color: #fff;
+    border: 1px solid #dadce0;
     border-radius: 8px;
     font-size: 0.9em;
     color: #333;
+    overflow: hidden;
 }
 
 .mwassistant-tool-summary {
     padding: 8px 12px;
+    background-color: #f8f9fa;
     cursor: pointer;
     display: flex;
     align-items: center;
     list-style: none;
-    /* Hide default triangle in some browsers */
     outline: none;
     user-select: none;
 }
 
-/* Custom indicator triangle */
 .mwassistant-tool-summary::-webkit-details-marker {
     display: none;
 }
@@ -225,7 +355,7 @@
     content: '▶';
     font-size: 0.8em;
     margin-right: 8px;
-    color: #777;
+    color: #5f6368;
     transition: transform 0.2s;
 }
 
@@ -234,82 +364,40 @@
 }
 
 .mwassistant-tool-name {
-    font-weight: bold;
-    color: #555;
+    font-weight: 600;
+    color: #5f6368;
     margin-right: 10px;
-    text-transform: uppercase;
     font-size: 0.85em;
-    white-space: nowrap;
+    text-transform: uppercase;
 }
 
 .mwassistant-tool-preview {
-    color: #888;
+    color: #5f6368;
     font-family: monospace;
-    font-size: 0.9em;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    display: flex;
-    align-items: center;
-}
-
-.mwassistant-tool-preview-query {
-    color: #d63384;
-    margin-right: 5px;
-}
-
-.mwassistant-tool-preview-result {
-    color: #2e7d32;
-    margin-left: 5px;
+    flex: 1;
 }
 
 .mwassistant-tool-expanded {
-    padding: 0 12px 12px 12px;
-    border-top: 1px solid #eee;
-    margin-top: 4px;
+    padding: 12px;
+    border-top: 1px solid #dadce0;
 }
 
-.mwassistant-tool-header {
-    /* Hidden in expanded view effectively since it's in summary now, 
-       but keeping rule just in case referenced elsewhere */
-    display: none;
-}
-
-.mwassistant-tool-query {
-    margin: 8px 0;
-    background: #fff;
-    padding: 8px;
+.mwassistant-tool-query, .mwassistant-tool-result pre {
+    background-color: #f1f3f4;
+    padding: 10px;
     border-radius: 4px;
-    border: 1px solid #eee;
-}
-
-.mwassistant-tool-query code {
-    color: #d63384;
-    word-break: break-all;
-    font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
+    font-family: monospace;
     font-size: 0.9em;
-}
-
-.mwassistant-tool-result {
-    border-top: 1px solid #eee;
-    padding-top: 8px;
+    overflow-x: auto;
+    margin: 5px 0;
 }
 
 .mwassistant-tool-result-header {
-    font-weight: bold;
-    font-size: 0.8em;
-    color: #777;
-    margin-bottom: 4px;
-}
-
-.mwassistant-tool-result pre {
-    background: #2d2d2d;
-    color: #fff;
-    padding: 10px;
-    border-radius: 4px;
-    overflow-x: auto;
-    margin: 0;
-    font-size: 0.85em;
-    max-height: 300px;
-    font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
+    font-weight: 600;
+    margin-top: 10px;
+    margin-bottom: 5px;
+    color: #202124;
 }

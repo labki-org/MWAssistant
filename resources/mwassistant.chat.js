@@ -2,14 +2,11 @@
  * MWAssistant Chat Interface
  *
  * Provides:
- *  - Chat-style UI
- *  - Markdown-safe rendering
+ *  - ChatGPT-style sidebar with session list
+ *  - Chat-style UI with markdown rendering
  *  - Code block wrappers with copy button
- *  - Session handling
+ *  - Session switching and management
  *  - Clean async request/response pipeline
- *
- * This file intentionally has no business logic.
- * It only handles the user interface & MediaWiki API requests.
  */
 (function (mw, $) {
 
@@ -25,10 +22,24 @@
     }
 
     /**
-     * Utility: Sleep helper (future streaming-ready)
+     * Format a date for display
      */
-    function delay(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
+    function formatDate(isoString) {
+        if (!isoString) return '';
+        const date = new Date(isoString);
+        const now = new Date();
+        const diff = now - date;
+        
+        // Less than 24 hours: show time
+        if (diff < 86400000) {
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+        // Less than 7 days: show day name
+        if (diff < 604800000) {
+            return date.toLocaleDateString([], { weekday: 'short' });
+        }
+        // Otherwise: show date
+        return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
     }
 
     /**
@@ -39,20 +50,21 @@
         /**
          * @param {Object} config
          * @param {jQuery} config.$container
-         * @param {string} [config.sessionId]
          * @param {string} [config.context] 'chat' or 'editor'
          * @param {Function} [config.getExtraContext]
          */
         constructor(config) {
             this.$container = config.$container;
-            this.sessionId = config.sessionId || generateUUID();
             this.context = config.context || 'chat';
             this.getExtraContext = config.getExtraContext || (() => null);
 
+            this.sessionId = null;  // Will be set when session is loaded/created
+            this.sessions = [];
             this.mwApi = new mw.Api();
 
             this.renderUI();
             this.bindEvents();
+            this.loadSessions();
         }
 
         /* ------------------------------------------------------------------
@@ -61,30 +73,161 @@
 
         renderUI() {
             const html = `
-                <div class="mwassistant-chat">
-                    <div class="mwassistant-chat-header">
-                        <h2>MWAssistant</h2>
-                        <span 
-                            class="mwassistant-log-notice"
-                            id="mwassistant-chat-status"
-                            title="Session: ${this.sessionId}"
-                        >Chat is being logged</span>
+                <div class="mwassistant-layout">
+                    <div class="mwassistant-sidebar">
+                        <div class="mwassistant-sidebar-header">
+                            <button class="mwassistant-new-chat" id="mwassistant-new-chat">
+                                <span class="mwassistant-icon">+</span> New Chat
+                            </button>
+                        </div>
+                        <div class="mwassistant-session-list" id="mwassistant-session-list">
+                            <div class="mwassistant-loading">Loading sessions...</div>
+                        </div>
                     </div>
+                    <div class="mwassistant-chat">
+                        <div class="mwassistant-chat-header">
+                            <h2 id="mwassistant-chat-title">New Chat</h2>
+                        </div>
 
-                    <div class="mwassistant-chat-log" id="mwassistant-chat-log"></div>
+                        <div class="mwassistant-chat-log" id="mwassistant-chat-log">
+                            <div class="mwassistant-welcome">
+                                <p>Welcome to MWAssistant! Ask me anything about this wiki.</p>
+                            </div>
+                        </div>
 
-                    <div class="mwassistant-chat-input">
-                        <textarea 
-                            id="mwassistant-chat-input-text" 
-                            rows="3" 
-                            placeholder="What's on your mind?"
-                        ></textarea>
-                        <button id="mwassistant-chat-send">Send</button>
+                        <div class="mwassistant-chat-input">
+                            <textarea 
+                                id="mwassistant-chat-input-text" 
+                                rows="3" 
+                                placeholder="What's on your mind?"
+                            ></textarea>
+                            <button id="mwassistant-chat-send">Send</button>
+                        </div>
                     </div>
                 </div>
             `;
 
             this.$container.html(html);
+        }
+
+        /* ------------------------------------------------------------------
+         * Session List Management
+         * ------------------------------------------------------------------ */
+
+        async loadSessions() {
+            try {
+                const data = await this.mwApi.post({
+                    action: 'mwassistant-sessions',
+                    command: 'list',
+                    token: mw.user.tokens.get('csrfToken')
+                });
+                
+                const result = data['mwassistant-sessions'];
+                if (result && !result.error) {
+                    this.sessions = Array.isArray(result) ? result : [];
+                    this.renderSessionList();
+                } else {
+                    this.showSessionError(result?.message || 'Failed to load sessions');
+                }
+            } catch (err) {
+                console.error('Failed to load sessions:', err);
+                this.showSessionError('Failed to load sessions');
+            }
+        }
+
+        renderSessionList() {
+            const $list = this.$container.find('#mwassistant-session-list');
+            
+            if (this.sessions.length === 0) {
+                $list.html('<div class="mwassistant-empty">No previous chats</div>');
+                return;
+            }
+
+            const items = this.sessions.map(s => `
+                <div class="mwassistant-session-item ${s.session_id === this.sessionId ? 'active' : ''}" 
+                     data-session-id="${s.session_id}">
+                    <div class="mwassistant-session-info">
+                        <span class="mwassistant-session-title">${this.escapeHtml(s.title || 'Untitled')}</span>
+                        <span class="mwassistant-session-date">${formatDate(s.updated_at)}</span>
+                    </div>
+                    <button class="mwassistant-session-delete" data-session-id="${s.session_id}" title="Delete">×</button>
+                </div>
+            `).join('');
+
+            $list.html(items);
+        }
+
+        showSessionError(message) {
+            const $list = this.$container.find('#mwassistant-session-list');
+            $list.html(`<div class="mwassistant-error">${this.escapeHtml(message)}</div>`);
+        }
+
+        async loadSession(sessionId) {
+            const $log = this.$container.find('#mwassistant-chat-log');
+            $log.html('<div class="mwassistant-loading">Loading conversation...</div>');
+
+            try {
+                const data = await this.mwApi.post({
+                    action: 'mwassistant-sessions',
+                    command: 'get',
+                    session_id: sessionId,
+                    token: mw.user.tokens.get('csrfToken')
+                });
+
+                const result = data['mwassistant-sessions'];
+                if (result && !result.error && result.messages) {
+                    this.sessionId = sessionId;
+                    this.$container.find('#mwassistant-chat-title').text(result.title || 'Chat');
+                    
+                    $log.empty();
+                    result.messages.forEach(msg => {
+                        this.appendMessage(msg.role, msg.content);
+                    });
+
+                    this.renderSessionList();  // Update active state
+                } else {
+                    $log.html('<div class="mwassistant-error">Failed to load conversation</div>');
+                }
+            } catch (err) {
+                console.error('Failed to load session:', err);
+                $log.html('<div class="mwassistant-error">Failed to load conversation</div>');
+            }
+        }
+
+        async deleteSession(sessionId) {
+            if (!confirm('Delete this conversation?')) return;
+
+            try {
+                await this.mwApi.post({
+                    action: 'mwassistant-sessions',
+                    command: 'delete',
+                    session_id: sessionId,
+                    token: mw.user.tokens.get('csrfToken')
+                });
+
+                // Remove from local list
+                this.sessions = this.sessions.filter(s => s.session_id !== sessionId);
+                this.renderSessionList();
+
+                // If we deleted the current session, start a new one
+                if (this.sessionId === sessionId) {
+                    this.startNewChat();
+                }
+            } catch (err) {
+                console.error('Failed to delete session:', err);
+                alert('Failed to delete conversation');
+            }
+        }
+
+        startNewChat() {
+            this.sessionId = null;
+            this.$container.find('#mwassistant-chat-title').text('New Chat');
+            this.$container.find('#mwassistant-chat-log').html(`
+                <div class="mwassistant-welcome">
+                    <p>Welcome to MWAssistant! Ask me anything about this wiki.</p>
+                </div>
+            `);
+            this.renderSessionList();  // Clear active state
         }
 
         /* ------------------------------------------------------------------
@@ -146,12 +289,20 @@
             return clean;
         }
 
+        escapeHtml(text) {
+            return $('<div>').text(text).html();
+        }
+
         /* ------------------------------------------------------------------
          * Message Rendering
          * ------------------------------------------------------------------ */
 
         appendMessage(role, content) {
             const $log = this.$container.find('#mwassistant-chat-log');
+            
+            // Remove welcome message if present
+            $log.find('.mwassistant-welcome').remove();
+            
             const cls = role === 'user' ? 'mwassistant-msg-user' : 'mwassistant-msg-assistant';
 
             const $msg = $('<div>')
@@ -217,7 +368,6 @@
                 displayResult = `<span class="mwassistant-error">${result.error}</span>`;
                 resultPreview = `Error: ${result.error}`;
             } else if (toolName === 'mw_run_smw_ask') {
-                // SMW specific handling
                 if (result['mwassistant-smw']?.result) {
                     displayResult = result['mwassistant-smw'].result;
                     resultPreview = "SMW Result";
@@ -226,16 +376,13 @@
                     resultPreview = "JSON Result";
                 }
             } else if (Array.isArray(result)) {
-                // List results (categories/properties/search)
                 if (result.length === 0) {
                     displayResult = "<em>No matches found.</em>";
                     resultPreview = "No matches";
                 } else if (typeof result[0] === 'string') {
-                    // Simple string list
                     displayResult = `<ul class="mwassistant-tool-list">${result.map(x => `<li>${x}</li>`).join('')}</ul>`;
                     resultPreview = result.join(", ");
                 } else if (result[0]?.title && result[0]?.score) {
-                    // Search results
                     displayResult = `<ul class="mwassistant-tool-list">
                         ${result.map(x => `<li><b>[[${x.title}]]</b> (Score: ${x.score.toFixed(2)})</li>`).join('')}
                     </ul>`;
@@ -245,7 +392,6 @@
                     resultPreview = "Array Result";
                 }
             } else if (typeof result === 'string') {
-                // Text result (e.g. page content) - truncate for display
                 const maxLen = 500;
                 resultPreview = result;
                 if (result.length > maxLen) {
@@ -318,6 +464,23 @@
                     setTimeout(() => $btn.text('Copy'), 1500);
                 });
             });
+
+            // New chat button
+            $root.on('click', '#mwassistant-new-chat', () => this.startNewChat());
+
+            // Session list click
+            $root.on('click', '.mwassistant-session-item', (e) => {
+                if ($(e.target).hasClass('mwassistant-session-delete')) return;
+                const sessionId = $(e.currentTarget).data('session-id');
+                if (sessionId) this.loadSession(sessionId);
+            });
+
+            // Session delete button
+            $root.on('click', '.mwassistant-session-delete', (e) => {
+                e.stopPropagation();
+                const sessionId = $(e.currentTarget).data('session-id');
+                if (sessionId) this.deleteSession(sessionId);
+            });
         }
 
         /* ------------------------------------------------------------------
@@ -370,14 +533,19 @@
                 content: userText
             });
 
-            return {
+            const payload = {
                 action: 'mwassistant-chat',
                 format: 'json',
                 messages: JSON.stringify(messages),
-                session_id: this.sessionId,
                 context: this.context,
                 token: mw.user.tokens.get('csrfToken')
             };
+
+            if (this.sessionId) {
+                payload.session_id = this.sessionId;
+            }
+
+            return payload;
         }
 
         /* ------------------------------------------------------------------
@@ -392,18 +560,11 @@
                 return;
             }
 
-            // Add link to log if present
-            if (result.log_info?.url) {
-                const $status = this.$container.find('#mwassistant-chat-status');
-                const linkHtml =
-                    `<a href="${result.log_info.url}" target="_blank" class="mwassistant-log-notice" id="mwassistant-chat-status">Logs auto-saved</a>`;
-
-                // Replace span with link, or update existing link
-                if ($status.is('span')) {
-                    $status.replaceWith(linkHtml);
-                } else {
-                    $status.attr('href', result.log_info.url);
-                }
+            // Update session ID from response
+            if (result.session_id && !this.sessionId) {
+                this.sessionId = result.session_id;
+                // Reload session list to include new session
+                this.loadSessions();
             }
 
             // Show tool usage if present
@@ -417,6 +578,15 @@
             if (result.messages?.length) {
                 const last = result.messages[result.messages.length - 1];
                 this.appendMessage(last.role, last.content);
+                
+                // Update title if this was the first message
+                if (result.messages.length <= 2) {
+                    // Try to get title from session
+                    const session = this.sessions.find(s => s.session_id === this.sessionId);
+                    if (session?.title) {
+                        this.$container.find('#mwassistant-chat-title').text(session.title);
+                    }
+                }
             } else if (result.error) {
                 this.appendMessage('assistant', 'Error: ' + (result.message || 'Unknown'));
             } else {

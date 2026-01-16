@@ -57,6 +57,18 @@ class HttpClient
     }
 
     /**
+     * DELETE helper.
+     *
+     * @param string $path
+     * @param string $jwt
+     * @return array
+     */
+    public function delete(string $path, string $jwt): array
+    {
+        return $this->request('DELETE', $path, [], $jwt);
+    }
+
+    /**
      * Low-level request function.
      *
      * Returns:

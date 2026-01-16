@@ -104,4 +104,60 @@ class ChatClient
 
         return $resp['body'] ?? [];
     }
+
+    /**
+     * Get list of chat sessions for a user.
+     *
+     * @param UserIdentity $user
+     * @param int $limit Maximum sessions to return
+     * @param int $offset Pagination offset
+     * @return array List of session summaries or error
+     */
+    public function getSessions(UserIdentity $user, int $limit = 50, int $offset = 0): array
+    {
+        $roles = $this->getUserRoles($user);
+        $jwt = JWT::createMWToMCPToken($user, $roles, ['chat_completion']);
+
+        $resp = $this->client->getJson('/chat/sessions', [
+            'limit' => $limit,
+            'offset' => $offset,
+        ], $jwt);
+
+        return $this->handleResponse($resp, 'list sessions');
+    }
+
+    /**
+     * Get a specific session with its message history.
+     *
+     * @param UserIdentity $user
+     * @param string $sessionId
+     * @return array Session data with messages or error
+     */
+    public function getSession(UserIdentity $user, string $sessionId): array
+    {
+        $roles = $this->getUserRoles($user);
+        $jwt = JWT::createMWToMCPToken($user, $roles, ['chat_completion']);
+
+        $resp = $this->client->getJson("/chat/sessions/{$sessionId}", [], $jwt);
+
+        return $this->handleResponse($resp, 'get session');
+    }
+
+    /**
+     * Delete a chat session.
+     *
+     * @param UserIdentity $user
+     * @param string $sessionId
+     * @return array Deletion result or error
+     */
+    public function deleteSession(UserIdentity $user, string $sessionId): array
+    {
+        $roles = $this->getUserRoles($user);
+        $jwt = JWT::createMWToMCPToken($user, $roles, ['chat_completion']);
+
+        $resp = $this->client->delete("/chat/sessions/{$sessionId}", $jwt);
+
+        return $this->handleResponse($resp, 'delete session');
+    }
 }
+
