@@ -80,20 +80,26 @@ class ApiMWAssistantCheckAccess extends ApiMWAssistantBase
         if ($this->isJwtAuthenticated) {
             $userFactory = MediaWikiServices::getInstance()->getUserFactory();
 
-            // Prefer lookup by ID if provided (more robust)
-            if ($userId) {
-                $user = $userFactory->newFromId($userId);
-                if ($user && $user->isRegistered()) {
-                    return $user;
+            // Prefer username lookup (more reliable for loading from DB)
+            if ($username) {
+                $user = $userFactory->newFromName($username);
+                if ($user) {
+                    $user->load();
+                    // Check if user has a valid ID (means they exist in DB)
+                    if ($user->getId() > 0) {
+                        return $user;
+                    }
                 }
             }
 
-            // Fallback to username lookup
-            if ($username) {
-                $user = $userFactory->newFromName($username);
-
-                if ($user && $user->isRegistered()) {
-                    return $user;
+            // Fallback to ID lookup
+            if ($userId) {
+                $user = $userFactory->newFromId($userId);
+                if ($user) {
+                    $user->load();
+                    if ($user->getId() > 0) {
+                        return $user;
+                    }
                 }
             }
 
@@ -128,8 +134,9 @@ class ApiMWAssistantCheckAccess extends ApiMWAssistantBase
                 continue;
             }
 
-            // Check if user can read this page
-            $access[$titleStr] = $permissionManager->userCan('read', $user, $title);
+            // Check permission - returns actual boolean
+            // Client should use formatversion=2 for proper JSON serialization
+            $access[$titleStr] = $permissionManager->quickUserCan('read', $user, $title);
         }
 
         return $access;

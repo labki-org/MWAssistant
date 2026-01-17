@@ -1,11 +1,8 @@
 <?php
 // Load MWAssistant from the mount point
 // Load MWAssistant from the mount point if it exists, otherwise assume standard location
-if ( file_exists( '/mw-user-extensions/MWAssistant/extension.json' ) ) {
-	wfLoadExtension( 'MWAssistant', '/mw-user-extensions/MWAssistant/extension.json' );
-} else {
-	wfLoadExtension( 'MWAssistant' );
-}
+wfLoadExtension( 'MWAssistant', '/mw-user-extensions/MWAssistant/extension.json' );
+
 
 // Secrets from old setup
 $wgMWAssistantJWTMWToMCPSecret = '8n7yHEg3UttL-lEOKASg-dS_xkU0gTuqGLn7zvhg4Uh-x52rtA0Zh13WJmGd8ojDjxXJB7qR9U';
@@ -13,6 +10,7 @@ $wgMWAssistantJWTMCPToMWSecret = 'rgz5g_b6NPUlBUeZlir9XWNvnEcuOSq8bA1w2N6DUvCJRO
 
 // Configuration
 $wgMWAssistantMCPBaseUrl = 'http://host.docker.internal:8000';
+$wgMWAssistantWikiApiUrl = 'http://host.docker.internal:8890/api.php';
 $wgMWAssistantEnabled = true;
 $wgMWAssistantWikiId = 'test-wiki';
 
