@@ -9,8 +9,8 @@ use MediaWiki\Revision\RevisionRecord;
 use MediaWiki\User\UserIdentity;
 use MWAssistant\Config;
 use MWAssistant\MCP\EmbeddingsClient;
-use SlotRecord;
-use ContentHandler;
+use MediaWiki\Content\ContentHandler;
+use MediaWiki\Revision\SlotRecord;
 
 /**
  * Automatically updates or deletes embeddings on the MCP server

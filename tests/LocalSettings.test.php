@@ -1,6 +1,11 @@
 <?php
 // Load MWAssistant from the mount point
-wfLoadExtension('MWAssistant', '/mw-user-extensions/MWAssistant/extension.json');
+// Load MWAssistant from the mount point if it exists, otherwise assume standard location
+if ( file_exists( '/mw-user-extensions/MWAssistant/extension.json' ) ) {
+	wfLoadExtension( 'MWAssistant', '/mw-user-extensions/MWAssistant/extension.json' );
+} else {
+	wfLoadExtension( 'MWAssistant' );
+}
 
 // Secrets from old setup
 $wgMWAssistantJWTMWToMCPSecret = '8n7yHEg3UttL-lEOKASg-dS_xkU0gTuqGLn7zvhg4Uh-x52rtA0Zh13WJmGd8ojDjxXJB7qR9U';
