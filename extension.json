@@ -114,7 +114,7 @@
         "mwassistant-smw": "MWAssistant\\Api\\ApiMWAssistantSMW",
         "mwassistant-check-access": "MWAssistant\\Api\\ApiMWAssistantCheckAccess"
     },
-    "load_composer_autoloader": true,
+    "load_composer_autoloader": false,
     "url": "https://www.mediawiki.org/wiki/Extension:MWAssistant",
     "license-name": "GPL-3.0-or-later",
     "config": {
