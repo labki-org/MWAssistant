@@ -32,6 +32,7 @@ class ApiMWAssistantCheckAccess extends ApiMWAssistantBase
         $params = $this->extractRequestParams();
         $titlesRaw = $params['titles'];
         $username = $params['username'];
+        $userId = $params['user_id'];
 
         // 2. Parse titles (pipe-separated, like standard MW API)
         $titleStrings = array_filter(
@@ -55,7 +56,7 @@ class ApiMWAssistantCheckAccess extends ApiMWAssistantBase
         }
 
         // 3. Resolve the user context
-        $user = $this->resolveUser($username);
+        $user = $this->resolveUser($username, $userId);
 
         // 4. Check permissions for each title
         $access = $this->checkPermissions($user, $titleStrings);
@@ -74,14 +75,26 @@ class ApiMWAssistantCheckAccess extends ApiMWAssistantBase
      * @param string|null $username
      * @return UserIdentity
      */
-    private function resolveUser(?string $username): UserIdentity
+    private function resolveUser(?string $username, ?int $userId = null): UserIdentity
     {
-        if ($this->isJwtAuthenticated && $username) {
+        if ($this->isJwtAuthenticated) {
             $userFactory = MediaWikiServices::getInstance()->getUserFactory();
-            $user = $userFactory->newFromName($username);
 
-            if ($user && $user->isRegistered()) {
-                return $user;
+            // Prefer lookup by ID if provided (more robust)
+            if ($userId) {
+                $user = $userFactory->newFromId($userId);
+                if ($user && $user->isRegistered()) {
+                    return $user;
+                }
+            }
+
+            // Fallback to username lookup
+            if ($username) {
+                $user = $userFactory->newFromName($username);
+
+                if ($user && $user->isRegistered()) {
+                    return $user;
+                }
             }
 
             // Fall back to anonymous if user not found
@@ -134,6 +147,10 @@ class ApiMWAssistantCheckAccess extends ApiMWAssistantBase
             ],
             'username' => [
                 self::PARAM_TYPE => 'string',
+                self::PARAM_REQUIRED => false,
+            ],
+            'user_id' => [
+                self::PARAM_TYPE => 'integer',
                 self::PARAM_REQUIRED => false,
             ],
         ];
