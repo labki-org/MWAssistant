@@ -39,16 +39,21 @@ class AutoEmbeddingHooks
         RevisionRecord $revisionRecord,
         $editResult
     ): void {
-
         if (!Config::isAutoEmbedEnabled()) {
-            wfDebugLog('mwassistant', 'AutoEmbed disabled — skipping.');
+            error_log("[MWAssistant] AutoEmbed disabled in Config.");
             return;
         }
+        error_log("[MWAssistant] AutoEmbed Triggered for: " . $wikiPage->getTitle()->getPrefixedText());
 
         $title = $wikiPage->getTitle();
         if (!$title) {
+            error_log("[MWAssistant] AutoEmbed: No title found.");
             return;
         }
+
+        $pageTitle = $title->getPrefixedText();
+        $namespace = $title->getNamespace();
+        $timestamp = $revisionRecord->getTimestamp();
 
         // Skip talk pages & user pages to avoid embedding huge volumes of irrelevant content
         if ($title->isTalkPage() || $title->getNamespace() === NS_USER) {
@@ -65,39 +70,30 @@ class AutoEmbeddingHooks
             return;
         }
 
-        $pageTitle = $title->getPrefixedText();
-        $namespace = $title->getNamespace();
-        $timestamp = $revisionRecord->getTimestamp();
+        // Extract text BEFORE processing
+        $text = ContentHandler::getContentText($content);
+        if (!is_string($text) || trim($text) === '') {
+            return;
+        }
 
-        // Defer embedding update to avoid blocking the page save request
-        DeferredUpdates::addCallable(
-            function () use ($user, $pageTitle, $content, $timestamp, $namespace) {
-                // Re-fetch content properly inside closure if needed, but text is already extracted.
-                // Wait, text is extracted above line 63. Let's pass $text.
-                $text = ContentHandler::getContentText($content);
-                if (!is_string($text) || trim($text) === '') {
-                    return;
-                }
-
-                $client = new EmbeddingsClient();
-                try {
-                    $res = $client->updatePage($user, $pageTitle, $text, $namespace, $timestamp);
-                    if (isset($res['error'])) {
-                        LoggerFactory::getInstance('MWAssistant')
-                            ->error('AutoEmbed update failed for {page}: {error}', [
-                                'page' => $pageTitle,
-                                'error' => $res['message'] ?? 'Unknown error'
-                            ]);
-                    } else {
-                        LoggerFactory::getInstance('MWAssistant')
-                            ->debug('AutoEmbed success for {page}', ['page' => $pageTitle]);
-                    }
-                } catch (\Throwable $e) {
-                    LoggerFactory::getInstance('MWAssistant')
-                        ->error('AutoEmbed update exception: ' . $e->getMessage());
-                }
+        // Execute immediately (synchronous) for reliability
+        $client = new EmbeddingsClient();
+        try {
+            $res = $client->updatePage($user, $pageTitle, $text, $namespace, $timestamp);
+            if (isset($res['error'])) {
+                LoggerFactory::getInstance('MWAssistant')
+                    ->error('AutoEmbed update failed for {page}: {error}', [
+                        'page' => $pageTitle,
+                        'error' => $res['message'] ?? 'Unknown error'
+                    ]);
+            } else {
+                LoggerFactory::getInstance('MWAssistant')
+                    ->debug('AutoEmbed success for {page}', ['page' => $pageTitle]);
             }
-        );
+        } catch (\Throwable $e) {
+            LoggerFactory::getInstance('MWAssistant')
+                ->error('AutoEmbed update exception: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -136,26 +132,23 @@ class AutoEmbeddingHooks
 
         $pageTitle = $title->getPrefixedText();
 
-        DeferredUpdates::addCallable(
-            function () use ($user, $pageTitle) {
-                $client = new EmbeddingsClient();
-                try {
-                    $res = $client->deletePage($user, $pageTitle);
-                    if (isset($res['error'])) {
-                        LoggerFactory::getInstance('MWAssistant')
-                            ->error('AutoEmbed delete failed for {page}: {error}', [
-                                'page' => $pageTitle,
-                                'error' => $res['message'] ?? 'Unknown error'
-                            ]);
-                    } else {
-                        LoggerFactory::getInstance('MWAssistant')
-                            ->debug('AutoEmbed delete success for {page}', ['page' => $pageTitle]);
-                    }
-                } catch (\Throwable $e) {
-                    LoggerFactory::getInstance('MWAssistant')
-                        ->error('AutoEmbed delete error: ' . $e->getMessage());
-                }
+        // Execute immediately (synchronous) for reliability
+        $client = new EmbeddingsClient();
+        try {
+            $res = $client->deletePage($user, $pageTitle);
+            if (isset($res['error'])) {
+                LoggerFactory::getInstance('MWAssistant')
+                    ->error('AutoEmbed delete failed for {page}: {error}', [
+                        'page' => $pageTitle,
+                        'error' => $res['message'] ?? 'Unknown error'
+                    ]);
+            } else {
+                LoggerFactory::getInstance('MWAssistant')
+                    ->debug('AutoEmbed delete success for {page}', ['page' => $pageTitle]);
             }
-        );
+        } catch (\Throwable $e) {
+            LoggerFactory::getInstance('MWAssistant')
+                ->error('AutoEmbed delete error: ' . $e->getMessage());
+        }
     }
 }

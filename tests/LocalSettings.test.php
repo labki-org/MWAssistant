@@ -13,6 +13,7 @@ $wgMWAssistantMCPBaseUrl = 'http://host.docker.internal:8000';
 $wgMWAssistantWikiApiUrl = 'http://host.docker.internal:8890/api.php';
 $wgMWAssistantEnabled = true;
 $wgMWAssistantWikiId = 'test-wiki';
+$wgMWAssistantAutoEmbed = true;
 
 // Fix autolinks to use correct port
 $wgServer = 'http://localhost:8890';
