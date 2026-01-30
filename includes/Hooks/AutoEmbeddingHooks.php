@@ -99,7 +99,7 @@ class AutoEmbeddingHooks
     /**
      * Fired after a page is deleted.
      *
-     * @param \WikiPage $wikiPage
+     * @param \MediaWiki\Page\ProperPageIdentity $page
      * @param UserIdentity $user
      * @param string $reason
      * @param int $id
@@ -108,7 +108,7 @@ class AutoEmbeddingHooks
      * @param bool $archived
      */
     public static function onPageDeleteComplete(
-        $wikiPage,
+        $page,
         UserIdentity $user,
         string $reason,
         int $id,
@@ -121,7 +121,7 @@ class AutoEmbeddingHooks
             return;
         }
 
-        $title = $wikiPage->getTitle();
+        $title = \MediaWiki\Title\Title::makeTitle($page->getNamespace(), $page->getDBkey());
         if (!$title) {
             return;
         }
