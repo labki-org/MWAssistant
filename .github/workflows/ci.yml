@@ -6,32 +6,38 @@ on:
   pull_request:
     branches: [main, master]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     name: PHP Lint
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.1"
           extensions: json, mbstring
           tools: composer
-      
+
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress
-      
+
       - name: Syntax check
         run: |
           find includes -name "*.php" -exec php -l {} \;
 
-  extension-test:
-    name: Extension Load Test
+  test:
+    name: PHPUnit Tests
     runs-on: ubuntu-latest
-    
+    env:
+      LABKI_PLATFORM_TAG: latest-dev
+
     steps:
       - uses: actions/checkout@v4
 
@@ -41,49 +47,55 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Pull images and start services
         run: |
           docker compose pull || echo "Pull failed, will try to continue..."
           docker compose up -d
-          
-      - name: Wait for database
-        run: |
-          echo "Waiting for database to be ready..."
-          for i in {1..30}; do
-            if docker compose exec -T db mysqladmin ping -h localhost -u labki -plabki_pass 2>/dev/null; then
-              echo "Database is ready"
-              break
-            fi
-            echo "Waiting for db... ($i/30)"
-            sleep 2
-          done
-          
+
       - name: Wait for wiki to be ready
         run: |
-          echo "Waiting for MediaWiki to be ready..."
-          for i in {1..30}; do
-            if docker compose exec -T wiki php -r "echo 'PHP OK';" 2>/dev/null; then
-              echo "Wiki container is ready"
-              break
+          echo "Waiting for MediaWiki API to respond..."
+          timeout=120
+          elapsed=0
+          until curl -sf "http://localhost:8890/api.php?action=query&meta=siteinfo&format=json" > /dev/null 2>&1; do
+            if [ "$elapsed" -ge "$timeout" ]; then
+              echo "Timed out after ${timeout}s waiting for wiki"
+              exit 1
             fi
-            echo "Waiting for wiki... ($i/30)"
-            sleep 3
+            echo "Waiting... (${elapsed}s / ${timeout}s)"
+            sleep 5
+            elapsed=$((elapsed + 5))
           done
-          # Extra wait for MW to fully initialize
-          sleep 10
-          
+          echo "MediaWiki is ready"
+
+      - name: Create test user
+        run: |
+          docker compose exec -T wiki php maintenance/run.php createAndPromote TestUser testpass123
+
+      - name: Run database update
+        run: |
+          docker compose exec -T wiki php maintenance/run.php update --quick
+
       - name: Check extension loaded
         run: |
-          echo "Testing extension load..."
           docker compose exec -T wiki php maintenance/run.php eval \
             'echo ExtensionRegistry::getInstance()->isLoaded("MWAssistant") ? "SUCCESS" : "FAIL";'
-      
-      - name: Check special page exists
+
+      - name: Run PHPUnit tests
         run: |
-          docker compose exec -T wiki php maintenance/run.php eval \
-            'echo class_exists("MWAssistant\\Special\\SpecialMWAssistant") ? "SUCCESS" : "FAIL";'
-      
+          docker compose exec -T -w /var/www/html wiki php tests/phpunit/phpunit.php \
+            --testdox \
+            /mw-user-extensions/MWAssistant/tests/phpunit/unit/ \
+            /mw-user-extensions/MWAssistant/tests/phpunit/integration/
+
+      - name: Write test summary
+        if: always()
+        run: |
+          echo "## PHPUnit Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "See the **Run PHPUnit tests** step for detailed results." >> $GITHUB_STEP_SUMMARY
+
       - name: Show logs on failure
         if: failure()
         run: |
@@ -93,9 +105,7 @@ jobs:
           docker compose logs wiki
           echo "=== DB container logs ==="
           docker compose logs db
-      
+
       - name: Cleanup
         if: always()
         run: docker compose down -v
-
-

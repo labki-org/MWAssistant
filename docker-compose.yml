@@ -1,6 +1,6 @@
 services:
   wiki:
-    image: ghcr.io/labki-org/labki-platform:latest
+    image: ghcr.io/labki-org/labki-platform:${LABKI_PLATFORM_TAG:-latest}
     ports:
       - "8890:80"
     environment:

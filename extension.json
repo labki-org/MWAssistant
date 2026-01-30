@@ -12,6 +12,9 @@
     "AutoloadNamespaces": {
         "MWAssistant\\": "includes/"
     },
+    "TestAutoloadNamespaces": {
+        "MWAssistant\\Tests\\": "tests/phpunit/"
+    },
     "MessagesDirs": {
         "MWAssistant": [
             "i18n"
