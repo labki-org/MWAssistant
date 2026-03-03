@@ -4,6 +4,7 @@ namespace MWAssistant\Api;
 
 use MediaWiki\Api\ApiBase;
 use MediaWiki\Api\ApiMain;
+use MediaWiki\MediaWikiServices;
 use MediaWiki\User\UserIdentity;
 use MediaWiki\Request\WebRequest;
 use MWAssistant\JWTVerifier;
@@ -95,6 +96,61 @@ abstract class ApiMWAssistantBase extends ApiBase
 
         // Case-insensitive check for safety, though MW sends as "Bearer ".
         return stripos($authHeader, 'Bearer ') === 0;
+    }
+
+    /**
+     * Resolve the user to act on behalf of.
+     *
+     * When JWT-authenticated, resolves from username/user_id params via UserFactory.
+     * When session-authenticated, returns the current session user.
+     *
+     * @param string|null $username
+     * @param int|null $userId
+     * @return UserIdentity
+     */
+    protected function resolveUser(?string $username = null, ?int $userId = null): UserIdentity
+    {
+        if ($this->isJwtAuthenticated) {
+            $userFactory = MediaWikiServices::getInstance()->getUserFactory();
+
+            // Prefer username lookup (more reliable for loading from DB)
+            if ($username) {
+                $user = $userFactory->newFromName($username);
+                if ($user) {
+                    $user->load();
+                    if ($user->getId() > 0) {
+                        return $user;
+                    }
+                }
+            }
+
+            // Fallback to ID lookup
+            if ($userId) {
+                $user = $userFactory->newFromId($userId);
+                if ($user) {
+                    $user->load();
+                    if ($user->getId() > 0) {
+                        return $user;
+                    }
+                }
+            }
+
+            // No valid user identity provided or resolved — reject rather
+            // than silently falling back to anonymous, which could grant
+            // unintended access on wikis with mixed namespace permissions.
+            if ($username || $userId) {
+                $this->dieWithError(
+                    ['apierror-badparams', 'Could not resolve the specified user'],
+                    'user-not-found'
+                );
+            }
+
+            // No user params at all — fall back to anonymous
+            return $userFactory->newAnonymous();
+        }
+
+        // Session auth -> use current user
+        return $this->getUser();
     }
 
     /**

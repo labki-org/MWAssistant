@@ -4,7 +4,6 @@ namespace MWAssistant\Api;
 
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Title\Title;
-use MediaWiki\User\UserFactory;
 use MediaWiki\User\UserIdentity;
 
 /**
@@ -67,48 +66,6 @@ class ApiMWAssistantCheckAccess extends ApiMWAssistantBase
             $this->getModuleName(),
             ['access' => $access]
         );
-    }
-
-    /**
-     * Resolve the user to check permissions for.
-     *
-     * @param string|null $username
-     * @return UserIdentity
-     */
-    private function resolveUser(?string $username, ?int $userId = null): UserIdentity
-    {
-        if ($this->isJwtAuthenticated) {
-            $userFactory = MediaWikiServices::getInstance()->getUserFactory();
-
-            // Prefer username lookup (more reliable for loading from DB)
-            if ($username) {
-                $user = $userFactory->newFromName($username);
-                if ($user) {
-                    $user->load();
-                    // Check if user has a valid ID (means they exist in DB)
-                    if ($user->getId() > 0) {
-                        return $user;
-                    }
-                }
-            }
-
-            // Fallback to ID lookup
-            if ($userId) {
-                $user = $userFactory->newFromId($userId);
-                if ($user) {
-                    $user->load();
-                    if ($user->getId() > 0) {
-                        return $user;
-                    }
-                }
-            }
-
-            // Fall back to anonymous if user not found
-            return $userFactory->newAnonymous();
-        }
-
-        // Session auth or no username provided -> use current user
-        return $this->getUser();
     }
 
     /**

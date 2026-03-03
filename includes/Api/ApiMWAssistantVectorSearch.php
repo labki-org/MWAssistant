@@ -40,7 +40,7 @@ class ApiMWAssistantVectorSearch extends ApiMWAssistantBase
             );
         }
 
-        $user = $this->getUser();
+        $user = $this->resolveUser();
 
         // -------------------------------------------------------------
         // Send to MCP search backend

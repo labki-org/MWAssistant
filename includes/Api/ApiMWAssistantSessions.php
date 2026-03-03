@@ -30,7 +30,7 @@ class ApiMWAssistantSessions extends ApiMWAssistantBase
         $params = $this->extractRequestParams();
         $command = $params['command'];
 
-        $user = $this->getUser();
+        $user = $this->resolveUser();
         $client = new ChatClient();
 
         switch ($command) {
@@ -38,10 +38,10 @@ class ApiMWAssistantSessions extends ApiMWAssistantBase
                 $result = $client->getSessions($user, $params['limit'] ?? 50, $params['offset'] ?? 0);
                 break;
             case 'get':
-                $result = $this->handleGet($client, $params);
+                $result = $this->handleGet($client, $user, $params);
                 break;
             case 'delete':
-                $result = $this->handleDelete($client, $params);
+                $result = $this->handleDelete($client, $user, $params);
                 break;
             default:
                 $result = ['error' => true, 'message' => 'Unknown command'];
@@ -61,29 +61,30 @@ class ApiMWAssistantSessions extends ApiMWAssistantBase
      * @param array $params
      * @return array
      */
-    private function handleGet(ChatClient $client, array $params): array
+    private function handleGet(ChatClient $client, $user, array $params): array
     {
         if (empty($params['session_id'])) {
             return ['error' => true, 'message' => 'Missing session_id parameter'];
         }
 
-        return $client->getSession($this->getUser(), $params['session_id']);
+        return $client->getSession($user, $params['session_id']);
     }
 
     /**
      * Handle delete session command.
      *
      * @param ChatClient $client
+     * @param \MediaWiki\User\UserIdentity $user
      * @param array $params
      * @return array
      */
-    private function handleDelete(ChatClient $client, array $params): array
+    private function handleDelete(ChatClient $client, $user, array $params): array
     {
         if (empty($params['session_id'])) {
             return ['error' => true, 'message' => 'Missing session_id parameter'];
         }
 
-        return $client->deleteSession($this->getUser(), $params['session_id']);
+        return $client->deleteSession($user, $params['session_id']);
     }
 
     /**
