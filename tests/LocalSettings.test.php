@@ -23,8 +23,13 @@ $wgServer = 'http://localhost:8890';
 $wgDebugLogGroups['mwassistant'] = '/var/log/mediawiki/mwassistant.log';
 $wgShowExceptionDetails = true;
 
-// Permissions
+// Permissions — private wiki (matches typical production setup)
+$wgGroupPermissions['*']['read'] = false;
+$wgGroupPermissions['user']['read'] = true;
 $wgGroupPermissions['user']['mwassistant-use'] = true;
+
+// Whitelist pages anonymous users need
+$wgWhitelistRead = [ 'Special:UserLogin', 'Special:CreateAccount', 'Main Page' ];
 
 // Cache
 $wgCacheDirectory = "$IP/cache-mwassistant";

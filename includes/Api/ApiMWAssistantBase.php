@@ -154,6 +154,24 @@ abstract class ApiMWAssistantBase extends ApiBase
     }
 
     /**
+     * Tell the MW API framework that this module handles its own auth.
+     *
+     * On private wikis ($wgGroupPermissions['*']['read'] = false), the API
+     * framework rejects all anonymous requests with 'readapidenied' BEFORE
+     * our checkAccess() runs. Since MCP→MW requests use JWT auth (not MW
+     * sessions), they appear anonymous to the framework.
+     *
+     * Returning false here skips that global check. Security is still
+     * enforced by checkAccess() (JWT verification or session + mwassistant-use).
+     *
+     * @return bool
+     */
+    public function isReadMode(): bool
+    {
+        return false;
+    }
+
+    /**
      * Validate that the MediaWiki session user is permitted to use the extension.
      *
      * @return void
