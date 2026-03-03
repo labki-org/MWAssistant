@@ -4,9 +4,6 @@ namespace MWAssistant\Api;
 
 use MediaWiki\MediaWikiServices;
 use MediaWiki\User\UserIdentity;
-use MediaWiki\User\UserFactory;
-use SearchEngineConfig;
-use SearchEngineFactory;
 
 /**
  * API module for performing standard MediaWiki keyword searches on behalf of a user.
@@ -33,27 +30,10 @@ class ApiMWAssistantKeywordSearch extends ApiMWAssistantBase
         $query = $params['query'];
         $limit = $params['limit'];
         $username = $params['username'];
+        $userId = $params['user_id'];
 
         // 2. Determine the user context
-        if ($this->isJwtAuthenticated && $username) {
-            // If trusted MCP request, load the user by name
-            $userFactory = MediaWikiServices::getInstance()->getUserFactory();
-            $user = $userFactory->newFromName($username);
-
-            if (!$user || !$user->isRegistered()) {
-                // Fallback to anonymous or error? 
-                // For now, let's process as anon if user not found, or maybe error is safer.
-                // But arguably the LLM user might not be mapped perfectly. 
-                // Let's assume the username passed is valid.
-                // If invalid, $user will be false or anon.
-                if (!$user) {
-                    $user = UserFactory::newAnonymous();
-                }
-            }
-        } else {
-            // Session auth or no username provided -> use current user
-            $user = $this->getUser();
-        }
+        $user = $this->resolveUser($username, $userId);
 
         // 3. Perform the search
         $results = $this->performSearch($user, $query, $limit);
@@ -131,6 +111,10 @@ class ApiMWAssistantKeywordSearch extends ApiMWAssistantBase
             ],
             'username' => [
                 self::PARAM_TYPE => 'string',
+                self::PARAM_REQUIRED => false,
+            ],
+            'user_id' => [
+                self::PARAM_TYPE => 'integer',
                 self::PARAM_REQUIRED => false,
             ],
         ];

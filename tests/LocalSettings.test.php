@@ -2,6 +2,7 @@
 // Load MWAssistant from the mount point
 // Load MWAssistant from the mount point if it exists, otherwise assume standard location
 wfLoadExtension( 'MWAssistant', '/mw-user-extensions/MWAssistant/extension.json' );
+wfLoadExtension( 'Lockdown' );
 
 
 // Secrets from old setup

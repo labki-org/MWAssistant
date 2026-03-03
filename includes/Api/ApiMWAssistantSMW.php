@@ -34,6 +34,8 @@ class ApiMWAssistantSMW extends ApiMWAssistantBase
 
         $params = $this->extractRequestParams();
         $query = $params['query'] ?? '';
+        $username = $params['username'] ?? null;
+        $userId = $params['user_id'] ?? null;
 
         // -------------------------------------------------------------
         // Validate parameter
@@ -45,7 +47,7 @@ class ApiMWAssistantSMW extends ApiMWAssistantBase
             );
         }
 
-        $user = $this->getUser();
+        $user = $this->resolveUser($username, $userId);
 
         // -------------------------------------------------------------
         // Execute query via Parser Evaluator
@@ -72,6 +74,14 @@ class ApiMWAssistantSMW extends ApiMWAssistantBase
             'query' => [
                 self::PARAM_TYPE => 'string',
                 self::PARAM_REQUIRED => true,
+            ],
+            'username' => [
+                self::PARAM_TYPE => 'string',
+                self::PARAM_REQUIRED => false,
+            ],
+            'user_id' => [
+                self::PARAM_TYPE => 'integer',
+                self::PARAM_REQUIRED => false,
             ],
         ];
     }
