@@ -2,9 +2,9 @@
 
 namespace MWAssistant\Api;
 
+use ContentHandler;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Title\Title;
-use MediaWiki\User\UserIdentity;
 
 /**
  * API module for fetching page content with permission checks.
@@ -46,7 +46,8 @@ class ApiMWAssistantPage extends ApiMWAssistantBase
         $user = $this->resolveUser($username, $userId);
 
         // 4. Check read permission
-        $permissionManager = MediaWikiServices::getInstance()->getPermissionManager();
+        $services = MediaWikiServices::getInstance();
+        $permissionManager = $services->getPermissionManager();
         $canRead = $permissionManager->quickUserCan('read', $user, $title);
 
         if (!$canRead) {
@@ -63,7 +64,7 @@ class ApiMWAssistantPage extends ApiMWAssistantBase
         }
 
         // 5. Fetch page content
-        $wikiPage = MediaWikiServices::getInstance()->getWikiPageFactory()->newFromTitle($title);
+        $wikiPage = $services->getWikiPageFactory()->newFromTitle($title);
         $content = $wikiPage->getContent();
 
         if ($content === null) {
@@ -79,14 +80,7 @@ class ApiMWAssistantPage extends ApiMWAssistantBase
         }
 
         // 6. Extract wikitext
-        $wikitext = null;
-        if ($content instanceof \WikitextContent) {
-            $wikitext = $content->getText();
-        } elseif (method_exists($content, 'getText')) {
-            $wikitext = $content->getText();
-        } else {
-            $wikitext = $content->serialize();
-        }
+        $wikitext = ContentHandler::getContentText($content);
 
         $this->getResult()->addValue(
             null,

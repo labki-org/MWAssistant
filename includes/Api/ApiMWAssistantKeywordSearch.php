@@ -76,7 +76,7 @@ class ApiMWAssistantKeywordSearch extends ApiMWAssistantBase
                     continue;
                 }
 
-                if (!$services->getPermissionManager()->userCan('read', $user, $title)) {
+                if (!$services->getPermissionManager()->quickUserCan('read', $user, $title)) {
                     continue;
                 }
 

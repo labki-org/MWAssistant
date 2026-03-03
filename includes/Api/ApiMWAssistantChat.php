@@ -47,7 +47,7 @@ class ApiMWAssistantChat extends ApiMWAssistantBase
         // -------------------------------------------------------------
         // Invoke the MCP chat backend
         // -------------------------------------------------------------
-        $user = $this->getUser();
+        $user = $this->resolveUser();
         $client = new ChatClient();
         $response = $client->chat($user, $messages, $sessionId, $context);
 

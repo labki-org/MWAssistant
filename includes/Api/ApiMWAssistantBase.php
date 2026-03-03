@@ -108,7 +108,7 @@ abstract class ApiMWAssistantBase extends ApiBase
      * @param int|null $userId
      * @return UserIdentity
      */
-    protected function resolveUser(?string $username, ?int $userId = null): UserIdentity
+    protected function resolveUser(?string $username = null, ?int $userId = null): UserIdentity
     {
         if ($this->isJwtAuthenticated) {
             $userFactory = MediaWikiServices::getInstance()->getUserFactory();
@@ -135,7 +135,17 @@ abstract class ApiMWAssistantBase extends ApiBase
                 }
             }
 
-            // Fall back to anonymous if user not found
+            // No valid user identity provided or resolved — reject rather
+            // than silently falling back to anonymous, which could grant
+            // unintended access on wikis with mixed namespace permissions.
+            if ($username || $userId) {
+                $this->dieWithError(
+                    ['apierror-badparams', 'Could not resolve the specified user'],
+                    'user-not-found'
+                );
+            }
+
+            // No user params at all — fall back to anonymous
             return $userFactory->newAnonymous();
         }
 

@@ -2,22 +2,19 @@
 
 namespace MWAssistant\Api;
 
-use MWAssistant\Api\ApiMWAssistantBase;
-use MWAssistant\MCP\SMWClient;
+use MediaWiki\MediaWikiServices;
+use MediaWiki\Title\Title;
 
 /**
- * API endpoint for executing Semantic MediaWiki queries
- * through the MCP server.
+ * API endpoint for executing Semantic MediaWiki queries.
  *
  * Responsibilities:
  *  - Authenticate via JWT or session (checkAccess()).
  *  - Validate "query" parameter.
- *  - Forward SMW query text to SMWClient.
- *  - Return structured results to the caller.
- *
- * NOTE:
- * SMW queries may reference internal wiki structures; ensure
- * SMWClient enforces permission checks and safe query execution.
+ *  - Execute the SMW #ask query via SMWParserEvaluator.
+ *  - Filter results: SMW does not respect Lockdown/ControlAccess read
+ *    restrictions, so this endpoint extracts page links from the parser
+ *    output and redacts any the user cannot read.
  */
 class ApiMWAssistantSMW extends ApiMWAssistantBase
 {
@@ -53,7 +50,32 @@ class ApiMWAssistantSMW extends ApiMWAssistantBase
         // Execute query via Parser Evaluator
         // -------------------------------------------------------------
         $evaluator = new \MWAssistant\SMW\SMWParserEvaluator();
-        $output = $evaluator->evaluate($user, $query);
+        $parserOutput = $evaluator->evaluate($user, $query);
+        $html = $parserOutput->getText();
+
+        // -------------------------------------------------------------
+        // Permission-filter: SMW ignores Lockdown/ControlAccess, so we
+        // check every page link in the output and redact denied ones.
+        // -------------------------------------------------------------
+        $services = MediaWikiServices::getInstance();
+        $permissionManager = $services->getPermissionManager();
+        $deniedTitles = [];
+
+        // getLinks() returns [namespace_id => [dbkey => page_id, ...], ...]
+        foreach ($parserOutput->getLinks() as $nsId => $pages) {
+            foreach ($pages as $dbKey => $pageId) {
+                $title = Title::makeTitle((int)$nsId, $dbKey);
+                if (!$permissionManager->quickUserCan('read', $user, $title)) {
+                    $deniedTitles[] = $title->getPrefixedText();
+                }
+            }
+        }
+
+        if (!empty($deniedTitles)) {
+            foreach ($deniedTitles as $denied) {
+                $html = str_replace($denied, '[FILTERED]', $html);
+            }
+        }
 
         // -------------------------------------------------------------
         // Output result
@@ -61,7 +83,10 @@ class ApiMWAssistantSMW extends ApiMWAssistantBase
         $this->getResult()->addValue(
             null,
             $this->getModuleName(),
-            ['result' => $output]
+            [
+                'result' => $html,
+                'filtered_count' => count($deniedTitles),
+            ]
         );
     }
 
