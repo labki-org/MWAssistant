@@ -44,6 +44,47 @@ class ApiMWAssistantChat extends ApiMWAssistantBase
             );
         }
 
+        // Validate session_id is a valid UUID v4 if provided
+        if ($sessionId !== null && $sessionId !== '') {
+            if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $sessionId)) {
+                $this->dieWithError(
+                    ['apierror-badparams', 'Invalid session_id format (expected UUID v4)'],
+                    'bad-session-id'
+                );
+            }
+        }
+
+        // Validate each message has required fields with valid values
+        $allowedRoles = ['user', 'assistant', 'system'];
+        foreach ($messages as $i => $msg) {
+            if (!is_array($msg)) {
+                $this->dieWithError(
+                    ['apierror-badparams', "Message at index $i is not an object"],
+                    'bad-message'
+                );
+            }
+            if (!isset($msg['role']) || !in_array($msg['role'], $allowedRoles, true)) {
+                $this->dieWithError(
+                    ['apierror-badparams', "Message at index $i has invalid or missing role"],
+                    'bad-message-role'
+                );
+            }
+            if (!isset($msg['content']) || !is_string($msg['content'])) {
+                $this->dieWithError(
+                    ['apierror-badparams', "Message at index $i has invalid or missing content"],
+                    'bad-message-content'
+                );
+            }
+        }
+
+        // Validate context parameter
+        if (!in_array($context, ['chat', 'editor'], true)) {
+            $this->dieWithError(
+                ['apierror-badparams', 'Invalid context parameter (expected "chat" or "editor")'],
+                'bad-context'
+            );
+        }
+
         // -------------------------------------------------------------
         // Invoke the MCP chat backend
         // -------------------------------------------------------------

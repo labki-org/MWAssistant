@@ -4,7 +4,6 @@ namespace MWAssistant\MCP;
 
 use MWAssistant\HttpClient;
 use MWAssistant\JWT;
-use MediaWiki\MediaWikiServices;
 use MediaWiki\User\UserIdentity;
 
 /**
@@ -39,7 +38,7 @@ class ChatClient
      */
     public function chat(UserIdentity $user, array $messages, ?string $sessionId = null, string $context = 'chat'): array
     {
-        $roles = $this->getUserRoles($user);
+        $roles = HttpClient::getUserRoles($user);
         $jwt = JWT::createMWToMCPToken($user, $roles, ['chat_completion']);
 
         $payload = [
@@ -52,57 +51,9 @@ class ChatClient
             $payload['session_id'] = $sessionId;
         }
 
-        \wfDebugLog('mwassistant', 'ChatClient payload: ' . json_encode($payload));
         $resp = $this->client->postJson('/chat/', $payload, $jwt);
-        \wfDebugLog('mwassistant', 'ChatClient raw response: ' . print_r($resp, true));
 
-        return $this->handleResponse($resp, 'chat');
-    }
-
-    /**
-     * Fetch user groups/roles for JWT construction.
-     *
-     * @param UserIdentity $user
-     * @return string[]
-     */
-    private function getUserRoles(UserIdentity $user): array
-    {
-        return MediaWikiServices::getInstance()
-            ->getUserGroupManager()
-            ->getUserGroups($user);
-    }
-
-    /**
-     * Normalize MCP HTTP response into a stable array format.
-     *
-     * On success:
-     *   returns $resp['body']
-     *
-     * On error:
-     *   returns ['error' => true, 'status' => int|null, 'message' => string]
-     *
-     * @param array $resp
-     * @param string $context Context label for error messages
-     * @return array
-     */
-    private function handleResponse(array $resp, string $context): array
-    {
-        $ok = $resp['ok'] ?? false;
-
-        if (!$ok) {
-            $code = $resp['code'] ?? null;
-            $body = $resp['body'] ?? null;
-
-            $bodyStr = is_string($body) ? $body : json_encode($body);
-
-            return [
-                'error' => true,
-                'status' => $code,
-                'message' => "MCP {$context} error: " . ($bodyStr ?? 'Unknown error'),
-            ];
-        }
-
-        return $resp['body'] ?? [];
+        return $this->client->handleResponse($resp, 'chat');
     }
 
     /**
@@ -115,7 +66,7 @@ class ChatClient
      */
     public function getSessions(UserIdentity $user, int $limit = 50, int $offset = 0): array
     {
-        $roles = $this->getUserRoles($user);
+        $roles = HttpClient::getUserRoles($user);
         $jwt = JWT::createMWToMCPToken($user, $roles, ['chat_completion']);
 
         $resp = $this->client->getJson('/chat/sessions', [
@@ -123,7 +74,7 @@ class ChatClient
             'offset' => $offset,
         ], $jwt);
 
-        return $this->handleResponse($resp, 'list sessions');
+        return $this->client->handleResponse($resp, 'list sessions');
     }
 
     /**
@@ -135,12 +86,12 @@ class ChatClient
      */
     public function getSession(UserIdentity $user, string $sessionId): array
     {
-        $roles = $this->getUserRoles($user);
+        $roles = HttpClient::getUserRoles($user);
         $jwt = JWT::createMWToMCPToken($user, $roles, ['chat_completion']);
 
         $resp = $this->client->getJson("/chat/sessions/{$sessionId}", [], $jwt);
 
-        return $this->handleResponse($resp, 'get session');
+        return $this->client->handleResponse($resp, 'get session');
     }
 
     /**
@@ -152,12 +103,11 @@ class ChatClient
      */
     public function deleteSession(UserIdentity $user, string $sessionId): array
     {
-        $roles = $this->getUserRoles($user);
+        $roles = HttpClient::getUserRoles($user);
         $jwt = JWT::createMWToMCPToken($user, $roles, ['chat_completion']);
 
         $resp = $this->client->delete("/chat/sessions/{$sessionId}", $jwt);
 
-        return $this->handleResponse($resp, 'delete session');
+        return $this->client->handleResponse($resp, 'delete session');
     }
 }
-

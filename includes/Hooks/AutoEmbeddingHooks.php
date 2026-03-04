@@ -39,15 +39,16 @@ class AutoEmbeddingHooks
         RevisionRecord $revisionRecord,
         $editResult
     ): void {
+        $logger = LoggerFactory::getInstance('MWAssistant');
         if (!Config::isAutoEmbedEnabled()) {
-            error_log("[MWAssistant] AutoEmbed disabled in Config.");
+            $logger->debug('AutoEmbed disabled in Config.');
             return;
         }
-        error_log("[MWAssistant] AutoEmbed Triggered for: " . $wikiPage->getTitle()->getPrefixedText());
+        $logger->debug('AutoEmbed triggered for: {page}', ['page' => $wikiPage->getTitle()->getPrefixedText()]);
 
         $title = $wikiPage->getTitle();
         if (!$title) {
-            error_log("[MWAssistant] AutoEmbed: No title found.");
+            $logger->warning('AutoEmbed: No title found.');
             return;
         }
 

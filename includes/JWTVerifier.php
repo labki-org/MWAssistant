@@ -2,6 +2,7 @@
 
 namespace MWAssistant;
 
+use MediaWiki\Logger\LoggerFactory;
 use RuntimeException;
 
 /**
@@ -178,14 +179,14 @@ class JWTVerifier
 
     private function logFailure(string $reason, ?array $claims = null): void
     {
-        $entry = [
-            'reason' => $reason,
-            'timestamp' => time(),
-            'iss' => $claims['iss'] ?? null,
-            'aud' => $claims['aud'] ?? null,
-            'scopes' => $claims['scope'] ?? null,
-        ];
-
-        \wfDebugLog('mwassistant-jwt', json_encode($entry));
+        LoggerFactory::getInstance('MWAssistant')->warning(
+            'JWT verification failed: {reason}',
+            [
+                'reason' => $reason,
+                'iss' => $claims['iss'] ?? null,
+                'aud' => $claims['aud'] ?? null,
+                'scopes' => $claims['scope'] ?? null,
+            ]
+        );
     }
 }
