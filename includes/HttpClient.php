@@ -31,7 +31,7 @@ class HttpClient
         // Allow override (EmbeddingsClient passes explicit base).
         $this->baseUrl = rtrim($baseUrl ?? Config::getMCPBaseUrl(), '/');
         $this->factory = MediaWikiServices::getInstance()->getHttpRequestFactory();
-        $this->logger = LoggerFactory::getInstance('MWAssistant');
+        $this->logger = LoggerFactory::getInstance('mwassistant');
     }
 
     /**

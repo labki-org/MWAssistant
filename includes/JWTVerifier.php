@@ -179,7 +179,7 @@ class JWTVerifier
 
     private function logFailure(string $reason, ?array $claims = null): void
     {
-        LoggerFactory::getInstance('MWAssistant')->warning(
+        LoggerFactory::getInstance('mwassistant')->warning(
             'JWT verification failed: {reason}',
             [
                 'reason' => $reason,

@@ -39,7 +39,7 @@ class AutoEmbeddingHooks
         RevisionRecord $revisionRecord,
         $editResult
     ): void {
-        $logger = LoggerFactory::getInstance('MWAssistant');
+        $logger = LoggerFactory::getInstance('mwassistant');
         if (!Config::isAutoEmbedEnabled()) {
             $logger->debug('AutoEmbed disabled in Config.');
             return;
@@ -108,7 +108,7 @@ class AutoEmbeddingHooks
         $logEntry,
         bool $archived
     ): void {
-        $logger = LoggerFactory::getInstance('MWAssistant');
+        $logger = LoggerFactory::getInstance('mwassistant');
 
         if (!Config::isAutoEmbedEnabled()) {
             return;
