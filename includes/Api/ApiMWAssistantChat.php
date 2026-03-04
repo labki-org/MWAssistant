@@ -17,6 +17,8 @@ use MWAssistant\MCP\ChatClient;
  */
 class ApiMWAssistantChat extends ApiMWAssistantBase
 {
+    private const ALLOWED_ROLES = ['user', 'assistant', 'system'];
+    private const ALLOWED_CONTEXTS = ['chat', 'editor'];
 
     /**
      * Main API execution.
@@ -55,7 +57,6 @@ class ApiMWAssistantChat extends ApiMWAssistantBase
         }
 
         // Validate each message has required fields with valid values
-        $allowedRoles = ['user', 'assistant', 'system'];
         foreach ($messages as $i => $msg) {
             if (!is_array($msg)) {
                 $this->dieWithError(
@@ -63,7 +64,7 @@ class ApiMWAssistantChat extends ApiMWAssistantBase
                     'bad-message'
                 );
             }
-            if (!isset($msg['role']) || !in_array($msg['role'], $allowedRoles, true)) {
+            if (!isset($msg['role']) || !in_array($msg['role'], self::ALLOWED_ROLES, true)) {
                 $this->dieWithError(
                     ['apierror-badparams', "Message at index $i has invalid or missing role"],
                     'bad-message-role'
@@ -78,7 +79,7 @@ class ApiMWAssistantChat extends ApiMWAssistantBase
         }
 
         // Validate context parameter
-        if (!in_array($context, ['chat', 'editor'], true)) {
+        if (!in_array($context, self::ALLOWED_CONTEXTS, true)) {
             $this->dieWithError(
                 ['apierror-badparams', 'Invalid context parameter (expected "chat" or "editor")'],
                 'bad-context'

@@ -52,7 +52,7 @@ class ApiMWAssistantCheckAccess extends ApiMWAssistantBase
         // Hard limit to prevent abuse
         if (count($titleStrings) > self::MAX_TITLES_PER_REQUEST) {
             $this->dieWithError(
-                ['apierror-badparams', 'Maximum 100 titles allowed per request'],
+                ['apierror-badparams', 'Maximum ' . self::MAX_TITLES_PER_REQUEST . ' titles allowed per request'],
                 'too-many-titles'
             );
         }

@@ -14,6 +14,9 @@ use MediaWiki\User\UserIdentity;
  */
 class SMWParserEvaluator
 {
+    /** @var int Default limit for SMW query results */
+    private const SMW_RESULT_LIMIT = 100;
+
     /**
      * Evaluate an SMW query string by wrapping it in {{#ask:...}}
      * and parsing it.
@@ -22,9 +25,6 @@ class SMWParserEvaluator
      * @param string $queryArgs The inner arguments for #ask (e.g. "[[Cat:X]]|?Prop")
      * @return ParserOutput The full parser output (use getText() for HTML, getLinks() for subjects)
      */
-    /** @var int Default limit for SMW query results */
-    private const SMW_RESULT_LIMIT = 100;
-
     public function evaluate(UserIdentity $user, string $queryArgs): ParserOutput
     {
         // Append a result limit if the query doesn't already specify one

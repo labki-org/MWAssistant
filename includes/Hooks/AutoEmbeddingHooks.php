@@ -71,29 +71,20 @@ class AutoEmbeddingHooks
             return;
         }
 
-        // Extract text BEFORE processing
-        $text = ContentHandler::getContentText($content);
-        if (!is_string($text) || trim($text) === '') {
-            return;
-        }
-
         // Execute immediately (synchronous) for reliability
         $client = new EmbeddingsClient();
         try {
             $res = $client->updatePage($user, $pageTitle, $text, $namespace, $timestamp);
             if (isset($res['error'])) {
-                LoggerFactory::getInstance('MWAssistant')
-                    ->error('AutoEmbed update failed for {page}: {error}', [
-                        'page' => $pageTitle,
-                        'error' => $res['message'] ?? 'Unknown error'
-                    ]);
+                $logger->error('AutoEmbed update failed for {page}: {error}', [
+                    'page' => $pageTitle,
+                    'error' => $res['message'] ?? 'Unknown error'
+                ]);
             } else {
-                LoggerFactory::getInstance('MWAssistant')
-                    ->debug('AutoEmbed success for {page}', ['page' => $pageTitle]);
+                $logger->debug('AutoEmbed success for {page}', ['page' => $pageTitle]);
             }
         } catch (\Throwable $e) {
-            LoggerFactory::getInstance('MWAssistant')
-                ->error('AutoEmbed update exception: ' . $e->getMessage());
+            $logger->error('AutoEmbed update exception: ' . $e->getMessage());
         }
     }
 
@@ -117,6 +108,7 @@ class AutoEmbeddingHooks
         $logEntry,
         bool $archived
     ): void {
+        $logger = LoggerFactory::getInstance('MWAssistant');
 
         if (!Config::isAutoEmbedEnabled()) {
             return;
@@ -138,18 +130,15 @@ class AutoEmbeddingHooks
         try {
             $res = $client->deletePage($user, $pageTitle);
             if (isset($res['error'])) {
-                LoggerFactory::getInstance('MWAssistant')
-                    ->error('AutoEmbed delete failed for {page}: {error}', [
-                        'page' => $pageTitle,
-                        'error' => $res['message'] ?? 'Unknown error'
-                    ]);
+                $logger->error('AutoEmbed delete failed for {page}: {error}', [
+                    'page' => $pageTitle,
+                    'error' => $res['message'] ?? 'Unknown error'
+                ]);
             } else {
-                LoggerFactory::getInstance('MWAssistant')
-                    ->debug('AutoEmbed delete success for {page}', ['page' => $pageTitle]);
+                $logger->debug('AutoEmbed delete success for {page}', ['page' => $pageTitle]);
             }
         } catch (\Throwable $e) {
-            LoggerFactory::getInstance('MWAssistant')
-                ->error('AutoEmbed delete error: ' . $e->getMessage());
+            $logger->error('AutoEmbed delete error: ' . $e->getMessage());
         }
     }
 }
