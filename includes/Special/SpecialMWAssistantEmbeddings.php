@@ -145,7 +145,7 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
                 "Updated: <b>$updated</b><br>" .
                 "Skipped: $skipped<br>" .
                 "Errors: $errors" .
-                ($errors && $lastErr ? "<br>Last Error: $lastErr" : "");
+                ($errors && $lastErr ? "<br>Last Error: " . htmlspecialchars($lastErr) : "");
 
             $output->addHTML(Html::successBox($msg));
 
@@ -195,7 +195,7 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
         );
 
         if (isset($res['error'])) {
-            $output->addHTML(Html::errorBox($res['message']));
+            $output->addHTML(Html::errorBox(htmlspecialchars($res['message'] ?? 'Unknown error')));
         } else {
             $output->addHTML(
                 Html::successBox(

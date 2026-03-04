@@ -143,16 +143,21 @@
                 return;
             }
 
-            const items = this.sessions.map(s => `
-                <div class="mwassistant-session-item ${s.session_id === this.sessionId ? 'active' : ''}" 
-                     data-session-id="${s.session_id}">
+            const items = this.sessions.map(s => {
+                const safeId = this.escapeHtml(s.session_id || '');
+                const safeTitle = this.escapeHtml(s.title || 'Untitled');
+                const safeDate = this.escapeHtml(formatDate(s.updated_at));
+                const activeClass = s.session_id === this.sessionId ? 'active' : '';
+                return `
+                <div class="mwassistant-session-item ${activeClass}"
+                     data-session-id="${safeId}">
                     <div class="mwassistant-session-info">
-                        <span class="mwassistant-session-title">${this.escapeHtml(s.title || 'Untitled')}</span>
-                        <span class="mwassistant-session-date">${formatDate(s.updated_at)}</span>
+                        <span class="mwassistant-session-title">${safeTitle}</span>
+                        <span class="mwassistant-session-date">${safeDate}</span>
                     </div>
-                    <button class="mwassistant-session-delete" data-session-id="${s.session_id}" title="Delete">×</button>
-                </div>
-            `).join('');
+                    <button class="mwassistant-session-delete" data-session-id="${safeId}" title="Delete">×</button>
+                </div>`;
+            }).join('');
 
             $list.html(items);
         }

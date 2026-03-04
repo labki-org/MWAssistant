@@ -5,7 +5,6 @@ namespace MWAssistant\MCP;
 use MWAssistant\Config;
 use MWAssistant\HttpClient;
 use MWAssistant\JWT;
-use MediaWiki\MediaWikiServices;
 use MediaWiki\User\UserIdentity;
 
 /**
@@ -34,6 +33,7 @@ class EmbeddingsClient
      * @param UserIdentity $user
      * @param string $title
      * @param string $content
+     * @param int $namespace
      * @param string|null $timestamp Last-modified timestamp (optional)
      *
      * @return array
@@ -55,14 +55,11 @@ class EmbeddingsClient
         ];
 
         $resp = $this->client->postJson('/embeddings/page', $payload, $jwt);
-        return $this->handleResponse($resp);
+        return $this->client->handleResponse($resp, 'embeddings update');
     }
 
     /**
      * Delete embeddings for a given page title.
-     *
-     * Assumes MCP server exposes:
-     *   DELETE /embeddings/page    with JSON body { "title": "<title>" }
      *
      * @param UserIdentity $user
      * @param string $title
@@ -75,9 +72,8 @@ class EmbeddingsClient
 
         $payload = ['title' => $title];
 
-        // Assumes HttpClient::request(method, path, payload, jwt) is supported.
         $resp = $this->client->request('DELETE', '/embeddings/page', $payload, $jwt);
-        return $this->handleResponse($resp);
+        return $this->client->handleResponse($resp, 'embeddings delete');
     }
 
     /**
@@ -90,7 +86,7 @@ class EmbeddingsClient
     {
         $jwt = $this->createToken($user);
         $resp = $this->client->getJson('/embeddings/stats', [], $jwt);
-        return $this->handleResponse($resp);
+        return $this->client->handleResponse($resp, 'embeddings stats');
     }
 
     /**
@@ -101,41 +97,7 @@ class EmbeddingsClient
      */
     private function createToken(UserIdentity $user): string
     {
-        $roles = MediaWikiServices::getInstance()
-            ->getUserGroupManager()
-            ->getUserGroups($user);
-
+        $roles = HttpClient::getUserRoles($user);
         return JWT::createMWToMCPToken($user, $roles, ['embeddings']);
-    }
-
-    /**
-     * Normalize MCP HTTP response into a consistent shape.
-     *
-     * On success:
-     *  - returns $resp['body'] (or [] if missing)
-     *
-     * On error:
-     *  - returns ['error' => true, 'status' => int|null, 'message' => string]
-     *
-     * @param array $resp
-     * @return array
-     */
-    private function handleResponse(array $resp): array
-    {
-        $ok = $resp['ok'] ?? false;
-
-        if (!$ok) {
-            $code = $resp['code'] ?? null;
-            $body = $resp['body'] ?? null;
-            $bodyStr = is_string($body) ? $body : json_encode($body);
-
-            return [
-                'error' => true,
-                'status' => $code,
-                'message' => 'MCP embeddings error: ' . ($bodyStr ?? 'Unknown error'),
-            ];
-        }
-
-        return $resp['body'] ?? [];
     }
 }

@@ -2,6 +2,7 @@
 
 namespace MWAssistant;
 
+use MediaWiki\Logger\LoggerFactory;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Http\HttpRequestFactory;
 use StatusValue;
@@ -18,15 +19,19 @@ use StatusValue;
  */
 class HttpClient
 {
+    /** @var int Default HTTP request timeout in seconds */
+    private const REQUEST_TIMEOUT_SECONDS = 30;
 
     private string $baseUrl;
     private HttpRequestFactory $factory;
+    private \Psr\Log\LoggerInterface $logger;
 
     public function __construct(?string $baseUrl = null)
     {
         // Allow override (EmbeddingsClient passes explicit base).
         $this->baseUrl = rtrim($baseUrl ?? Config::getMCPBaseUrl(), '/');
         $this->factory = MediaWikiServices::getInstance()->getHttpRequestFactory();
+        $this->logger = LoggerFactory::getInstance('mwassistant');
     }
 
     /**
@@ -87,7 +92,7 @@ class HttpClient
 
         $options = [
             'method' => $method,
-            'timeout' => 30,
+            'timeout' => self::REQUEST_TIMEOUT_SECONDS,
         ];
 
         if (!empty($payload)) {
@@ -111,9 +116,13 @@ class HttpClient
 
         $req = $this->factory->create($url, $options, __METHOD__);
 
+        // Generate a unique request ID for distributed tracing
+        $requestId = bin2hex(random_bytes(8));
+
         $req->setHeader('Content-Type', 'application/json');
         $req->setHeader('Authorization', 'Bearer ' . $jwt);
         $req->setHeader('User-Agent', 'MWAssistant/1.0.0 (MediaWiki)');
+        $req->setHeader('X-Request-ID', $requestId);
 
         // Transport-level execution (network/HTTP)
         $status = $req->execute();
@@ -124,10 +133,10 @@ class HttpClient
                 ? $status->getWikiText()
                 : 'Unknown HTTP transport failure';
 
-            \wfDebugLog(
-                'mwassistant',
-                "HttpClient transport error for {$url}: {$err}"
-            );
+            $this->logger->error('HttpClient transport error for {url}: {err}', [
+                'url' => $url,
+                'err' => $err,
+            ]);
 
             return [
                 'ok' => false,
@@ -146,10 +155,11 @@ class HttpClient
 
         // HTTP-level failure (non-2xx)
         if ($httpCode < 200 || $httpCode >= 300) {
-            \wfDebugLog(
-                'mwassistant',
-                "HttpClient HTTP error {$httpCode} for {$url}: {$bodyRaw}"
-            );
+            $this->logger->warning('HttpClient HTTP error {code} for {url}: {body}', [
+                'code' => $httpCode,
+                'url' => $url,
+                'body' => $bodyRaw,
+            ]);
 
             return [
                 'ok' => false,
@@ -162,10 +172,10 @@ class HttpClient
         $decoded = json_decode($bodyRaw, true);
 
         if (json_last_error() !== JSON_ERROR_NONE) {
-            \wfDebugLog(
-                'mwassistant',
-                "HttpClient JSON decode error for {$url}: " . json_last_error_msg()
-            );
+            $this->logger->warning('HttpClient JSON decode error for {url}: {error}', [
+                'url' => $url,
+                'error' => json_last_error_msg(),
+            ]);
 
             return [
                 'ok' => false,
@@ -179,5 +189,47 @@ class HttpClient
             'code' => $httpCode,
             'body' => $decoded,
         ];
+    }
+
+    /**
+     * Normalize MCP HTTP response into a stable array format.
+     *
+     * On success: returns $resp['body']
+     * On error: returns ['error' => true, 'status' => int|null, 'message' => string]
+     *
+     * @param array $resp Raw response from request()
+     * @param string $context Context label for error messages
+     * @return array
+     */
+    public function handleResponse(array $resp, string $context = 'request'): array
+    {
+        $ok = $resp['ok'] ?? false;
+
+        if (!$ok) {
+            $code = $resp['code'] ?? null;
+            $body = $resp['body'] ?? null;
+            $bodyStr = is_string($body) ? $body : json_encode($body);
+
+            return [
+                'error' => true,
+                'status' => $code,
+                'message' => "MCP {$context} error: " . ($bodyStr ?? 'Unknown error'),
+            ];
+        }
+
+        return $resp['body'] ?? [];
+    }
+
+    /**
+     * Fetch user groups/roles for JWT construction.
+     *
+     * @param \MediaWiki\User\UserIdentity $user
+     * @return string[]
+     */
+    public static function getUserRoles(\MediaWiki\User\UserIdentity $user): array
+    {
+        return MediaWikiServices::getInstance()
+            ->getUserGroupManager()
+            ->getUserGroups($user);
     }
 }

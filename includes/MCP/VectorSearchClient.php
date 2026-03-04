@@ -4,7 +4,6 @@ namespace MWAssistant\MCP;
 
 use MWAssistant\HttpClient;
 use MWAssistant\JWT;
-use MediaWiki\MediaWikiServices;
 use MediaWiki\User\UserIdentity;
 
 /**
@@ -35,7 +34,7 @@ class VectorSearchClient
      */
     public function search(UserIdentity $user, string $query): array
     {
-        $roles = $this->getUserRoles($user);
+        $roles = HttpClient::getUserRoles($user);
         $jwt = JWT::createMWToMCPToken($user, $roles, ['search']);
 
         $payload = [
@@ -43,45 +42,6 @@ class VectorSearchClient
         ];
 
         $resp = $this->client->postJson('/search/', $payload, $jwt);
-        return $this->handleResponse($resp, 'search');
-    }
-
-    /**
-     * Fetch user groups/roles for JWT construction.
-     *
-     * @param UserIdentity $user
-     * @return string[]
-     */
-    private function getUserRoles(UserIdentity $user): array
-    {
-        return MediaWikiServices::getInstance()
-            ->getUserGroupManager()
-            ->getUserGroups($user);
-    }
-
-    /**
-     * Normalize MCP HTTP response into a stable array format.
-     *
-     * @param array $resp
-     * @param string $context
-     * @return array
-     */
-    private function handleResponse(array $resp, string $context): array
-    {
-        $ok = $resp['ok'] ?? false;
-
-        if (!$ok) {
-            $code = $resp['code'] ?? null;
-            $body = $resp['body'] ?? null;
-            $bodyStr = is_string($body) ? $body : json_encode($body);
-
-            return [
-                'error' => true,
-                'status' => $code,
-                'message' => "MCP {$context} error: " . ($bodyStr ?? 'Unknown error'),
-            ];
-        }
-
-        return $resp['body'] ?? [];
+        return $this->client->handleResponse($resp, 'search');
     }
 }

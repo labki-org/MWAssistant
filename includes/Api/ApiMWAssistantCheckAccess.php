@@ -20,6 +20,9 @@ use MediaWiki\User\UserIdentity;
  */
 class ApiMWAssistantCheckAccess extends ApiMWAssistantBase
 {
+    /** @var int Maximum number of titles per batch access-check request */
+    private const MAX_TITLES_PER_REQUEST = 100;
+
     /**
      * @inheritDoc
      */
@@ -47,9 +50,9 @@ class ApiMWAssistantCheckAccess extends ApiMWAssistantBase
         }
 
         // Hard limit to prevent abuse
-        if (count($titleStrings) > 100) {
+        if (count($titleStrings) > self::MAX_TITLES_PER_REQUEST) {
             $this->dieWithError(
-                ['apierror-badparams', 'Maximum 100 titles allowed per request'],
+                ['apierror-badparams', 'Maximum ' . self::MAX_TITLES_PER_REQUEST . ' titles allowed per request'],
                 'too-many-titles'
             );
         }
