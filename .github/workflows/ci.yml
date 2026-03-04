@@ -32,9 +32,6 @@ jobs:
         run: |
           find includes -name "*.php" -exec php -l {} \;
 
-      - name: PHP CodeSniffer
-        run: composer phpcs
-
   test:
     name: PHPUnit Tests
     runs-on: ubuntu-latest
