@@ -82,12 +82,17 @@ class ApiMWAssistantPage extends ApiMWAssistantBase
         // 6. Extract wikitext
         $wikitext = ContentHandler::getContentText($content);
 
+        // 7. Get latest revision timestamp
+        $revRecord = $services->getRevisionLookup()->getRevisionByTitle($title);
+        $timestamp = $revRecord ? $revRecord->getTimestamp() : null;
+
         $this->getResult()->addValue(
             null,
             $this->getModuleName(),
             [
                 'exists' => true,
                 'wikitext' => $wikitext,
+                'timestamp' => $timestamp,
             ]
         );
     }
