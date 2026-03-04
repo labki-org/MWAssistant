@@ -116,7 +116,9 @@
         "mwassistant-keyword-search": "MWAssistant\\Api\\ApiMWAssistantKeywordSearch",
         "mwassistant-smw": "MWAssistant\\Api\\ApiMWAssistantSMW",
         "mwassistant-check-access": "MWAssistant\\Api\\ApiMWAssistantCheckAccess",
-        "mwassistant-page": "MWAssistant\\Api\\ApiMWAssistantPage"
+        "mwassistant-page": "MWAssistant\\Api\\ApiMWAssistantPage",
+        "mwassistant-page-info": "MWAssistant\\Api\\ApiMWAssistantPageInfo",
+        "mwassistant-category-members": "MWAssistant\\Api\\ApiMWAssistantCategoryMembers"
     },
     "load_composer_autoloader": false,
     "url": "https://www.mediawiki.org/wiki/Extension:MWAssistant",
