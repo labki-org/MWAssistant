@@ -97,4 +97,10 @@ class SpecialMWAssistant extends SpecialPage
             )
         );
     }
+
+    /** @inheritDoc */
+    protected function getGroupName(): string
+    {
+        return 'labki';
+    }
 }

@@ -419,4 +419,10 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
             'classes' => ['mwassistant-input-widget'],
         ]);
     }
+
+    /** @inheritDoc */
+    protected function getGroupName(): string
+    {
+        return 'labki';
+    }
 }
