@@ -98,8 +98,12 @@
         }
     },
     "SpecialPages": {
-        "MWAssistant": "MWAssistant\\Special\\SpecialMWAssistant",
-        "MWAssistantEmbeddings": "MWAssistant\\Special\\SpecialMWAssistantEmbeddings"
+        "MWAssistant": {
+            "class": "MWAssistant\\Special\\SpecialMWAssistant"
+        },
+        "MWAssistantEmbeddings": {
+            "class": "MWAssistant\\Special\\SpecialMWAssistantEmbeddings"
+        }
     },
     "Hooks": {
         "BeforePageDisplay": "MWAssistant\\Hooks\\MWAssistantHooks::onBeforePageDisplay",
