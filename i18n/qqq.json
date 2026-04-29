@@ -16,8 +16,9 @@
     "specialpages-group-labki": "Heading for the Labki group on [[Special:SpecialPages]] (shared with sister extensions like SemanticSchemas).",
     "mwassistant-search-icon-title": "Tooltip shown when hovering over the MW Assistant shortcut icon next to the search input.",
     "mwassistant-search-icon-label": "Accessible label (aria-label) for the MW Assistant shortcut icon next to the search input.",
-    "mwassistantembeddings-batch-queued": "Banner shown after a successful batch enqueue on Special:MWAssistantEmbeddings. $1 = number of jobs enqueued, $2 = namespace ID, $3 = number of pages skipped because already in sync.",
-    "mwassistantembeddings-batch-nothing-to-do": "Banner shown when a batch enqueue had no work to do. $1 = number of pages already in sync.",
-    "mwassistantembeddings-single-queued": "Banner shown after a successful single-page embedding enqueue. $1 = page title.",
-    "mwassistantembeddings-reload-hint": "Trailing instruction in the batch banner pointing the user at the reload control."
+    "mwassistantembeddings-batch-queued": "Transient success notice shown immediately after a batch enqueue. $1 = number of jobs enqueued, $2 = number of pages skipped because already in sync.",
+    "mwassistantembeddings-batch-nothing-to-do": "Notice shown when a batch enqueue had no work to do. $1 = number of pages already in sync.",
+    "mwassistantembeddings-single-queued": "Notice shown after a successful single-page embedding enqueue. $1 = page title.",
+    "mwassistantembeddings-jobs-pending": "Persistent banner shown on every page render while embedding jobs are still in the queue. $1 = total pending count (waiting + currently running).",
+    "mwassistantembeddings-reload-hint": "Trailing instruction in the pending-jobs banner pointing the user at the reload control."
 }

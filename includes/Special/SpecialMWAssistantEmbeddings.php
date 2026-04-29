@@ -7,6 +7,7 @@ use MediaWiki\MediaWikiServices;
 use MediaWiki\SpecialPage\SpecialPage;
 use MediaWiki\Title\Title;
 use MediaWiki\Widget\TitleInputWidget;
+use MWAssistant\Jobs\DeleteEmbeddingJob;
 use MWAssistant\Jobs\UpdateEmbeddingJob;
 use MWAssistant\MCP\EmbeddingsClient;
 
@@ -142,7 +143,7 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
             }
 
             $queued = count($jobs);
-            $this->renderBatchQueuedBanner($namespace, $queued, $skipped);
+            $this->renderJustQueuedNotice($queued, $skipped);
 
         } catch (\Exception $e) {
             $output->addHTML(
@@ -152,11 +153,11 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
     }
 
     /**
-     * Render a "queued" banner after a batch enqueue. Server-rendered only —
-     * we intentionally avoid auto-refresh; the user reloads when they want
-     * to check progress.
+     * One-shot success notice rendered immediately after a batch submit.
+     * Persistent "X jobs in flight" feedback comes from the queue-driven
+     * pending banner that runs on every page render.
      */
-    private function renderBatchQueuedBanner(int $namespace, int $queued, int $skipped): void
+    private function renderJustQueuedNotice(int $queued, int $skipped): void
     {
         $output = $this->getOutput();
 
@@ -169,15 +170,46 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
             return;
         }
 
-        $body = $this->msg('mwassistantembeddings-batch-queued')
-            ->numParams($queued, $namespace, $skipped)
+        $output->addHTML(Html::successBox(
+            $this->msg('mwassistantembeddings-batch-queued')
+                ->numParams($queued, $skipped)
+                ->parse()
+        ));
+    }
+
+    /**
+     * Banner driven entirely by the JobQueue: persists across reloads as long
+     * as embedding jobs are still in flight, and disappears once the queue
+     * drains. This is what lets the user see progress without us auto-refreshing.
+     */
+    private function renderPendingJobsBanner(): void
+    {
+        $pending = $this->getPendingEmbeddingJobCount();
+        if ($pending === 0) {
+            return;
+        }
+
+        $body = $this->msg('mwassistantembeddings-jobs-pending')
+            ->numParams($pending)
             ->parse();
         $body .= ' ' . $this->renderReloadHint();
-        $output->addHTML(Html::rawElement(
+        $this->getOutput()->addHTML(Html::rawElement(
             'div',
             ['class' => 'mwassistant-batch-banner'],
             $body
         ));
+    }
+
+    private function getPendingEmbeddingJobCount(): int
+    {
+        $jobQueueGroup = $this->services->getJobQueueGroup();
+        $total = 0;
+        foreach ([UpdateEmbeddingJob::TYPE, DeleteEmbeddingJob::TYPE] as $type) {
+            $queue = $jobQueueGroup->get($type);
+            // Unclaimed (waiting) + acquired (currently being run by a runner).
+            $total += $queue->getSize() + $queue->getAcquiredCount();
+        }
+        return $total;
     }
 
     /**
@@ -293,14 +325,10 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
             return;
         }
 
-        $body = $this->msg('mwassistantembeddings-single-queued')
-            ->params($title->getPrefixedText())
-            ->parse();
-        $body .= ' ' . $this->renderReloadHint();
-        $output->addHTML(Html::rawElement(
-            'div',
-            ['class' => 'mwassistant-batch-banner'],
-            $body
+        $output->addHTML(Html::successBox(
+            $this->msg('mwassistantembeddings-single-queued')
+                ->params($title->getPrefixedText())
+                ->parse()
         ));
     }
 
@@ -315,6 +343,11 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
     {
         $output = $this->getOutput();
         $user = $this->getUser();
+
+        // Persistent banner — visible on every render while jobs are in flight,
+        // gone once the queue drains. Independent of whether this request
+        // submitted anything.
+        $this->renderPendingJobsBanner();
 
         try {
             $stats = $this->getStatsCached();

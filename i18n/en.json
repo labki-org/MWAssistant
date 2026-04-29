@@ -16,8 +16,9 @@
     "specialpages-group-labki": "Labki",
     "mwassistant-search-icon-title": "Ask MW Assistant about this query",
     "mwassistant-search-icon-label": "Ask MW Assistant",
-    "mwassistantembeddings-batch-queued": "Queued <b>$1</b> page {{PLURAL:$1|update|updates}} in namespace $2 for background processing. {{PLURAL:$3|$3 page is|$3 pages are}} already up to date and were skipped.",
+    "mwassistantembeddings-batch-queued": "Queued <b>$1</b> page {{PLURAL:$1|update|updates}} for background processing. {{PLURAL:$2|$2 page is|$2 pages are}} already up to date.",
     "mwassistantembeddings-batch-nothing-to-do": "Nothing to do — {{PLURAL:$1|the page is|all $1 pages are}} already up to date.",
     "mwassistantembeddings-single-queued": "Queued an embedding update for <b>$1</b>.",
+    "mwassistantembeddings-jobs-pending": "<b>$1</b> embedding {{PLURAL:$1|job is|jobs are}} still pending.",
     "mwassistantembeddings-reload-hint": "Reload this page to see progress."
 }
