@@ -61,6 +61,18 @@ class SpecialMWAssistantStream extends UnlistedSpecialPage
             return;
         }
 
+        // Long-running stream: don't let PHP's max_execution_time kill us
+        // mid-tool-loop. cURL has its own STREAM_TIMEOUT_SECONDS guard.
+        @set_time_limit(0);
+
+        // Release the PHP session lock immediately so the same user can keep
+        // navigating the wiki while their chat streams. Without this, any
+        // other request from the same user blocks until execute() returns,
+        // which can be 30+ seconds for a multi-tool query.
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            @session_write_close();
+        }
+
         $rawBody = file_get_contents('php://input');
         $payload = json_decode($rawBody, true);
         if (!is_array($payload)) {
