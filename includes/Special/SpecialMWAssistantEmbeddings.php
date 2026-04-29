@@ -2,12 +2,13 @@
 
 namespace MWAssistant\Special;
 
-use SpecialPage;
-use MWAssistant\MCP\EmbeddingsClient;
-use MediaWiki\MediaWikiServices;
+use MediaWiki\Content\ContentHandler;
 use MediaWiki\Html\Html;
+use MediaWiki\MediaWikiServices;
+use MediaWiki\SpecialPage\SpecialPage;
 use MediaWiki\Title\Title;
 use MediaWiki\Widget\TitleInputWidget;
+use MWAssistant\MCP\EmbeddingsClient;
 
 /**
  * Special page that shows embedding statistics and allows updating vectors
@@ -90,7 +91,7 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
             $mcpTimestamps = $stats['page_timestamps'] ?? [];
 
             $dbr = $this->services->getDBLoadBalancer()->getConnection(DB_REPLICA);
-            $res = $dbr->newSelectQueryBuilder()
+            $rows = $dbr->newSelectQueryBuilder()
                 ->select(['page_id', 'page_namespace', 'page_title', 'page_touched'])
                 ->from('page')
                 ->where([
@@ -107,7 +108,7 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
 
             set_time_limit(0);
 
-            foreach ($res as $row) {
+            foreach ($rows as $row) {
                 $titleObj = Title::newFromRow($row);
                 $prefixed = $titleObj->getPrefixedText();
                 $mwTouched = $row->page_touched;
@@ -122,7 +123,7 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
 
                 $wikiPage = $this->services->getWikiPageFactory()->newFromTitle($titleObj);
                 $content = $wikiPage->getContent();
-                $text = $content ? \ContentHandler::getContentText($content) : '';
+                $text = $content ? ContentHandler::getContentText($content) : '';
 
                 if (!$text) {
                     $skipped++;
@@ -132,10 +133,10 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
                 // $row->page_namespace is a string from DB, cast to int
                 $nsId = (int) $row->page_namespace;
 
-                $res = $this->client->updatePage($user, $prefixed, $text, $nsId, $mwTouched);
-                if (isset($res['error'])) {
+                $updateRes = $this->client->updatePage($user, $prefixed, $text, $nsId, $mwTouched);
+                if (isset($updateRes['error'])) {
                     $errors++;
-                    $lastErr = $res['message'];
+                    $lastErr = $updateRes['message'];
                 } else {
                     $updated++;
                 }
@@ -176,7 +177,7 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
 
         $wikiPage = $this->services->getWikiPageFactory()->newFromTitle($title);
         $content = $wikiPage->getContent();
-        $text = $content ? \ContentHandler::getContentText($content) : '';
+        $text = $content ? ContentHandler::getContentText($content) : '';
 
         if (!$text) {
             $output->addHTML(Html::errorBox("No text content found for page."));
@@ -186,7 +187,7 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
         $timestamp = $wikiPage->getTimestamp();
         $namespace = $title->getNamespace();
 
-        $res = $this->client->updatePage(
+        $updateRes = $this->client->updatePage(
             $user,
             $title->getPrefixedText(),
             $text,
@@ -194,8 +195,8 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
             $timestamp
         );
 
-        if (isset($res['error'])) {
-            $output->addHTML(Html::errorBox(htmlspecialchars($res['message'] ?? 'Unknown error')));
+        if (isset($updateRes['error'])) {
+            $output->addHTML(Html::errorBox(htmlspecialchars($updateRes['message'] ?? 'Unknown error')));
         } else {
             $output->addHTML(
                 Html::successBox(

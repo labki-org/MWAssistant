@@ -52,11 +52,16 @@
          * @param {jQuery} config.$container
          * @param {string} [config.context] 'chat' or 'editor'
          * @param {Function} [config.getExtraContext]
+         * @param {boolean} [config.hideSessions] Skip rendering the session list
+         *   and the per-message refetch. Used when the chat is embedded in a
+         *   constrained host (e.g., the editor sidebar) where Special:MWAssistant
+         *   is the canonical place to browse history.
          */
         constructor(config) {
             this.$container = config.$container;
             this.context = config.context || 'chat';
             this.getExtraContext = config.getExtraContext || (() => null);
+            this.hideSessions = !!config.hideSessions;
 
             this.sessionId = null;  // Will be set when session is loaded/created
             this.sessions = [];
@@ -115,6 +120,9 @@
          * ------------------------------------------------------------------ */
 
         async loadSessions() {
+            if (this.hideSessions) {
+                return;
+            }
             try {
                 const data = await this.mwApi.post({
                     action: 'mwassistant-sessions',
@@ -243,46 +251,50 @@
             if (!raw) return "";
 
             // Escape HTML – prevents XSS entirely.
-            let clean = $('<div>').text(raw).html();
+            let clean = this.escapeHtml(raw);
 
             const codeBlocks = [];
 
             // Extract fenced blocks
             clean = clean.replace(/```([\s\S]*?)```/g, (match, code) => {
-                const safe = $('<div>').text(code).text().trim();
                 const index = codeBlocks.length;
-
                 codeBlocks.push(`
                     <div class="mwassistant-code-wrapper">
                         <button class="mwassistant-copy-btn" title="Copy code">Copy</button>
-                        <pre class="mwassistant-code-block"><code>${safe}</code></pre>
+                        <pre class="mwassistant-code-block"><code>${code.trim()}</code></pre>
                     </div>
                 `);
-
                 return `___MWASSISTANT_CODE_BLOCK_${index}___`;
             });
 
-            // Inline code
+            // Inline code (content already HTML-escaped above)
             clean = clean.replace(/`([^`]+)`/g, (_, txt) => {
-                const safe = $('<div>').text(txt).html();
-                return `<code class="mwassistant-inline-code">${safe}</code>`;
+                return `<code class="mwassistant-inline-code">${txt}</code>`;
             });
 
             // Bold
             clean = clean.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
 
-            // Markdown links
+            // Markdown links — only allow safe URL schemes to prevent
+            // javascript:/data: injection through model output.
             clean = clean.replace(
                 /\[([^\]]+)\]\(([^)]+)\)/g,
-                (_, label, url) => `<a href="${url}" target="_blank" rel="noopener">${label}</a>`
+                (match, label, url) => {
+                    if (!this.isSafeUrl(url)) {
+                        return match;
+                    }
+                    return `<a href="${url}" target="_blank" rel="noopener">${label}</a>`;
+                }
             );
 
-            // Wiki links
+            // Wiki links – page comes from already-escaped text so it is safe
+            // to interpolate, but we still pass it through escapeHtml for the
+            // title attribute to be defensive about HTML entities.
             clean = clean.replace(
                 /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
                 (_, page, label) => {
                     const url = mw.util.getUrl(page);
-                    return `<a href="${url}" title="${page}">${label || page}</a>`;
+                    return `<a href="${url}" title="${this.escapeHtml(page)}">${label || page}</a>`;
                 }
             );
 
@@ -296,6 +308,15 @@
 
         escapeHtml(text) {
             return $('<div>').text(text).html();
+        }
+
+        /**
+         * Returns true only for HTTP(S), protocol-relative, root-relative,
+         * or in-page anchor URLs. Rejects javascript:, data:, vbscript:, etc.
+         */
+        isSafeUrl(url) {
+            const trimmed = String(url).trim();
+            return /^(https?:\/\/|\/\/|\/|#)/i.test(trimmed);
         }
 
         /* ------------------------------------------------------------------

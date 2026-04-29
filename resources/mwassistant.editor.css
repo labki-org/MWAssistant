@@ -1,38 +1,77 @@
-/* Editor Sidebar */
+/* Editor toolbar button */
+.mwassistant-editor-button {
+    margin: 0 0.5em;
+}
+
+/* Inside the Vector 2022 / OOUI toolbar the button needs explicit
+   positioning to sit above floating sibling elements. */
+.mwassistant-editor-button-ooui {
+    position: relative;
+    z-index: 999;
+    margin: 5px;
+}
+
+
+/* ============================================================
+ * Sidebar shell
+ * ============================================================ */
 #mwassistant-editor-sidebar {
     position: fixed;
-    top: 50px; /* Below MW header usually */
+    top: 50px;          /* Below MW header (most skins). */
     right: 0;
     bottom: 0;
-    width: 350px;
+    width: min(380px, 90vw);
     background: #fff;
-    border-left: 1px solid #ccc;
-    box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+    border-left: 1px solid #c8ccd1;
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.08);
     z-index: 1000;
-    display: none; /* Hidden by default */
-    display: flex; /* Flex to handle height */
+    display: flex;
     flex-direction: column;
 }
 
-.mwassistant-sidebar-header {
-    padding: 10px;
+.mwassistant-editor-sidebar-header {
+    padding: 8px 12px;
     background: #f8f9fa;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid #e0e0e0;
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: 8px;
 }
 
-.mwassistant-sidebar-title {
-    font-weight: bold;
+.mwassistant-editor-sidebar-title {
+    font-weight: 600;
+    flex: 1;
 }
 
-.mwassistant-sidebar-close {
+.mwassistant-editor-sidebar-fullpage {
+    color: #54595d;
+    text-decoration: none;
+    font-size: 1em;
+    line-height: 1;
+    padding: 4px 6px;
+    border-radius: 4px;
+}
+
+.mwassistant-editor-sidebar-fullpage:hover {
+    background: #eaecf0;
+    color: #36c;
+    text-decoration: none;
+}
+
+.mwassistant-editor-sidebar-close {
     background: none;
     border: none;
-    font-size: 20px;
+    font-size: 22px;
     cursor: pointer;
     line-height: 1;
+    padding: 0 4px;
+    color: #54595d;
+    border-radius: 4px;
+}
+
+.mwassistant-editor-sidebar-close:hover {
+    background: #eaecf0;
+    color: #d33;
 }
 
 #mwassistant-editor-chat {
@@ -40,22 +79,56 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    min-height: 0; /* Allow inner scroll containers to shrink correctly. */
 }
 
-/* Chat component adjustments when inside sidebar */
-#mwassistant-editor-chat .mwassistant-chat {
+
+/* ============================================================
+ * Chat-module overrides when embedded in the editor sidebar
+ * ============================================================
+ * The shared chat UI defaults to a 2-column layout (session list +
+ * chat) sized for the Special page. Inside our 350-ish-px sidebar we
+ * hide the session list, strip outer framing, and let the chat pane
+ * fill the available height.
+ */
+#mwassistant-editor-chat .mwassistant-layout {
     height: 100%;
-    display: flex;
-    flex-direction: column;
+    max-width: none;
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+#mwassistant-editor-chat .mwassistant-sidebar {
+    display: none;
+}
+
+/* Outer sidebar already provides a title bar. */
+#mwassistant-editor-chat .mwassistant-chat-header {
+    display: none;
+}
+
+#mwassistant-editor-chat .mwassistant-chat {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
 }
 
 #mwassistant-editor-chat .mwassistant-chat-log {
     flex: 1;
     overflow-y: auto;
-    padding: 10px;
+    padding: 12px;
 }
 
 #mwassistant-editor-chat .mwassistant-chat-input {
     padding: 10px;
-    border-top: 1px solid #ddd;
+    border-top: 1px solid #e0e0e0;
+    gap: 8px;
+}
+
+/* The narrow sidebar can't accommodate the default 24px send-button
+   horizontal padding without wrapping awkwardly. */
+#mwassistant-editor-chat .mwassistant-chat-input button {
+    padding: 10px 14px;
 }

@@ -1,33 +1,28 @@
-.mwassistant-search-btn {
-    position: absolute;
-    right: 5px;
-    /* Adjust based on search bar padding */
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 100 !important;
-    font-size: 0.8em;
-    padding: 2px 8px;
-    height: auto;
-    min-height: 0;
-    background: rgba(255, 255, 255, 0.95);
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    cursor: pointer;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-    white-space: nowrap;
-    color: #333;
-}
-
-/* Ensure parent has relative positioning for absolute child */
-#simpleSearch,
-#p-search form,
-.mw-search-form-wrapper,
-.cdx-text-input {
+/* Container for the "Ask Assistant" shortcut button injected next to a
+   MediaWiki search input. The button is positioned below the input so it
+   never overlays the user's typed query, regardless of input width. */
+.mwassistant-search-host {
     position: relative;
 }
 
-/* Adjustments for Vector skin (legacy) */
-#simpleSearch .mwassistant-search-btn {
-    right: 3em;
-    /* Make room for the search button */
+.mwassistant-search-btn {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 100;
+    font-size: 0.85em;
+    line-height: 1.2;
+    padding: 4px 10px;
+    background: #fff;
+    border: 1px solid #c8ccd1;
+    border-radius: 4px;
+    color: #36c;
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+}
+
+.mwassistant-search-btn:hover {
+    background: #f8f9fa;
+    border-color: #36c;
 }

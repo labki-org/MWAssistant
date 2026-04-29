@@ -1,20 +1,12 @@
 /**
  * MWAssistant – Edit Page Sidebar Chat Assistant
  *
- * Enhancements:
- *  - Modern ES6 class structure
- *  - Reliable toolbar detection
- *  - Clean sidebar layout management
- *  - Safer initialization and teardown logic
- *  - Improved editor context extraction
- *  - Consistent, isolated helper functions
+ * Adds an "Ask Assistant" button to the editor toolbar that opens a fixed
+ * sidebar containing the shared chat UI, pre-loaded with the current page's
+ * wikitext (and any selected range) as conversational context.
  */
 
 (function (mw, $) {
-
-    /* ======================================================================
-     * Utility helpers
-     * ====================================================================== */
 
     /** Return selected text inside a <textarea>. */
     function getSelectionText(textarea) {
@@ -26,43 +18,22 @@
         return (start !== end) ? textarea.value.substring(start, end) : "";
     }
 
-    /** Create reliably-namespaced log output */
-    function log(...args) {
-        console.log("[MWAssistant Editor]", ...args);
-    }
-
-    /** Error logging */
-    function error(...args) {
-        console.error("[MWAssistant Editor ERROR]", ...args);
-    }
-
-
-    /* ======================================================================
-     * Main Class
-     * ====================================================================== */
-
     class MWAssistantEditor {
 
         constructor() {
             this.sidebarInitialized = false;
             this.$sidebar = null;
             this.chatInstance = null;
-            this.mwApi = new mw.Api();
-
             this.init();
         }
-
-        /* ------------------------------------------------------------------
-         * Initialization
-         * ------------------------------------------------------------------ */
 
         init() {
             const action = mw.config.get("wgAction");
             if (action !== "edit" && action !== "submit") {
                 return; // Only attach in edit mode
             }
-
             this.addButton();
+            this.bindGlobalShortcuts();
         }
 
         /* ------------------------------------------------------------------
@@ -83,9 +54,8 @@
                 $toolbar = $(".oo-ui-toolbar-bar");
             }
 
-            // 4. Fallback: create a small toolbar
+            // 4. Fallback: create a small toolbar above the textarea
             if (!$toolbar.length && $("#wpTextbox1").length) {
-                log("Fallback toolbar created.");
                 $("#wpTextbox1").before('<div class="mwassistant-editor-tools"></div>');
                 $toolbar = $("#wpTextbox1").prev(".mwassistant-editor-tools");
             }
@@ -94,11 +64,8 @@
         }
 
         addButton() {
-            log("Attempting to inject editor button...");
-
             const $toolbar = this.findToolbar();
             if (!$toolbar || !$toolbar.length) {
-                error("Editor toolbar not found; aborting button injection.");
                 return;
             }
 
@@ -108,18 +75,14 @@
                 .text("Ask Assistant")
                 .on("click", (e) => this.toggleSidebar(e));
 
+            // Inside the OOUI toolbar (Vector 2022) the button needs to sit
+            // above absolutely-positioned siblings; everywhere else, just append.
             if ($toolbar.hasClass("oo-ui-toolbar-bar")) {
+                $btn.addClass("mwassistant-editor-button-ooui");
                 $toolbar.prepend($btn);
-                $btn.css({
-                    position: "relative",
-                    "z-index": 999,
-                    margin: "5px"
-                });
             } else {
                 $toolbar.append($btn);
             }
-
-            log("Editor button successfully added.");
         }
 
         /* ------------------------------------------------------------------
@@ -131,7 +94,6 @@
 
             if (!this.sidebarInitialized) {
                 this.initSidebar();
-                // Immediately show after init, regardless of CSS state
                 this.showSidebar();
                 return;
             }
@@ -146,7 +108,8 @@
         showSidebar() {
             if (!this.$sidebar) return;
             this.$sidebar.show();
-            $("#wpTextbox1").focus();
+            // Focus the chat input so the user can type immediately.
+            this.$sidebar.find('#mwassistant-chat-input-text').trigger('focus');
         }
 
         hideSidebar() {
@@ -154,43 +117,48 @@
             this.$sidebar.hide();
         }
 
+        bindGlobalShortcuts() {
+            // Esc closes the sidebar when it has focus or is visible.
+            $(document).on('keydown.mwassistantEditor', (e) => {
+                if (e.key !== 'Escape' || !this.$sidebar) return;
+                if (!this.$sidebar.is(':visible')) return;
+                // Only handle if the sidebar (or the chat input inside it) has focus,
+                // so we don't hijack Esc from other widgets.
+                if ($.contains(this.$sidebar[0], document.activeElement) ||
+                    document.activeElement === this.$sidebar[0]) {
+                    this.hideSidebar();
+                }
+            });
+        }
+
         /* ------------------------------------------------------------------
          * Sidebar Initialization
          * ------------------------------------------------------------------ */
 
         initSidebar() {
-            log("Initializing sidebar…");
-
-            // Sidebar shell
             this.$sidebar = $('<div id="mwassistant-editor-sidebar"></div>');
 
-            // Header with close button
             const $header = $(`
-                <div class="mwassistant-sidebar-header">
-                    <span class="mwassistant-sidebar-title">Assistant</span>
-                    <button type="button" class="mwassistant-sidebar-close">×</button>
+                <div class="mwassistant-editor-sidebar-header">
+                    <span class="mwassistant-editor-sidebar-title">Assistant</span>
+                    <a class="mwassistant-editor-sidebar-fullpage"
+                       href="${mw.util.getUrl('Special:MWAssistant')}"
+                       title="Open full assistant page">↗</a>
+                    <button type="button" class="mwassistant-editor-sidebar-close" aria-label="Close">×</button>
                 </div>
             `);
-
-            $header.find(".mwassistant-sidebar-close").on("click", () => this.hideSidebar());
+            $header.find(".mwassistant-editor-sidebar-close").on("click", () => this.hideSidebar());
             this.$sidebar.append($header);
 
-            // Chat container
             const $chatContainer = $('<div id="mwassistant-editor-chat"></div>');
             this.$sidebar.append($chatContainer);
 
-            // Append to DOM
             $("body").append(this.$sidebar);
 
-            // Initialize Chat UI
             this.initChat($chatContainer);
 
             this.sidebarInitialized = true;
         }
-
-        /* ------------------------------------------------------------------
-         * Chat Initialization w/ Context
-         * ------------------------------------------------------------------ */
 
         initChat($chatContainer) {
             if (!mw.mwAssistant?.Chat) {
@@ -203,6 +171,7 @@
             this.chatInstance = new mw.mwAssistant.Chat({
                 $container: $chatContainer,
                 context: 'editor',
+                hideSessions: true,
                 getExtraContext: () => {
                     const $textarea = $("#wpTextbox1");
                     const text = $textarea.val() || "";
@@ -223,10 +192,6 @@
             });
         }
     }
-
-    /* ======================================================================
-     * Auto-init
-     * ====================================================================== */
 
     $(function () {
         new MWAssistantEditor();

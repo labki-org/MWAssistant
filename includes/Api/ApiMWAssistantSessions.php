@@ -2,6 +2,7 @@
 
 namespace MWAssistant\Api;
 
+use MediaWiki\User\UserIdentity;
 use MWAssistant\MCP\ChatClient;
 
 /**
@@ -56,12 +57,8 @@ class ApiMWAssistantSessions extends ApiMWAssistantBase
 
     /**
      * Handle get session command.
-     *
-     * @param ChatClient $client
-     * @param array $params
-     * @return array
      */
-    private function handleGet(ChatClient $client, $user, array $params): array
+    private function handleGet(ChatClient $client, UserIdentity $user, array $params): array
     {
         if (empty($params['session_id'])) {
             return ['error' => true, 'message' => 'Missing session_id parameter'];
@@ -72,13 +69,8 @@ class ApiMWAssistantSessions extends ApiMWAssistantBase
 
     /**
      * Handle delete session command.
-     *
-     * @param ChatClient $client
-     * @param \MediaWiki\User\UserIdentity $user
-     * @param array $params
-     * @return array
      */
-    private function handleDelete(ChatClient $client, $user, array $params): array
+    private function handleDelete(ChatClient $client, UserIdentity $user, array $params): array
     {
         if (empty($params['session_id'])) {
             return ['error' => true, 'message' => 'Missing session_id parameter'];

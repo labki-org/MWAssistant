@@ -2,15 +2,15 @@
 
 namespace MWAssistant\Hooks;
 
-use MediaWiki\Deferred\DeferredUpdates;
+use MediaWiki\Content\ContentHandler;
 use MediaWiki\Logger\LoggerFactory;
-use MediaWiki\MediaWikiServices;
 use MediaWiki\Revision\RevisionRecord;
+use MediaWiki\Revision\SlotRecord;
+use MediaWiki\Title\Title;
 use MediaWiki\User\UserIdentity;
 use MWAssistant\Config;
 use MWAssistant\MCP\EmbeddingsClient;
-use MediaWiki\Content\ContentHandler;
-use MediaWiki\Revision\SlotRecord;
+use Psr\Log\LoggerInterface;
 
 /**
  * Automatically updates or deletes embeddings on the MCP server
@@ -39,25 +39,12 @@ class AutoEmbeddingHooks
         RevisionRecord $revisionRecord,
         $editResult
     ): void {
-        $logger = LoggerFactory::getInstance('mwassistant');
         if (!Config::isAutoEmbedEnabled()) {
-            $logger->debug('AutoEmbed disabled in Config.');
             return;
         }
-        $logger->debug('AutoEmbed triggered for: {page}', ['page' => $wikiPage->getTitle()->getPrefixedText()]);
 
         $title = $wikiPage->getTitle();
-        if (!$title) {
-            $logger->warning('AutoEmbed: No title found.');
-            return;
-        }
-
-        $pageTitle = $title->getPrefixedText();
-        $namespace = $title->getNamespace();
-        $timestamp = $revisionRecord->getTimestamp();
-
-        // Skip talk pages & user pages to avoid embedding huge volumes of irrelevant content
-        if ($title->isTalkPage() || $title->getNamespace() === NS_USER) {
+        if (!$title || self::shouldSkipTitle($title)) {
             return;
         }
 
@@ -71,21 +58,18 @@ class AutoEmbeddingHooks
             return;
         }
 
-        // Execute immediately (synchronous) for reliability
-        $client = new EmbeddingsClient();
-        try {
-            $res = $client->updatePage($user, $pageTitle, $text, $namespace, $timestamp);
-            if (isset($res['error'])) {
-                $logger->error('AutoEmbed update failed for {page}: {error}', [
-                    'page' => $pageTitle,
-                    'error' => $res['message'] ?? 'Unknown error'
-                ]);
-            } else {
-                $logger->debug('AutoEmbed success for {page}', ['page' => $pageTitle]);
-            }
-        } catch (\Throwable $e) {
-            $logger->error('AutoEmbed update exception: ' . $e->getMessage());
-        }
+        $pageTitle = $title->getPrefixedText();
+        self::runEmbeddingOp(
+            'update',
+            $pageTitle,
+            fn (EmbeddingsClient $c) => $c->updatePage(
+                $user,
+                $pageTitle,
+                $text,
+                $title->getNamespace(),
+                $revisionRecord->getTimestamp()
+            )
+        );
     }
 
     /**
@@ -108,37 +92,69 @@ class AutoEmbeddingHooks
         $logEntry,
         bool $archived
     ): void {
-        $logger = LoggerFactory::getInstance('mwassistant');
-
         if (!Config::isAutoEmbedEnabled()) {
             return;
         }
 
-        $title = \MediaWiki\Title\Title::makeTitle($page->getNamespace(), $page->getDBkey());
-        if (!$title) {
-            return;
-        }
-
-        if ($title->isTalkPage() || $title->getNamespace() === NS_USER) {
+        $title = Title::makeTitle($page->getNamespace(), $page->getDBkey());
+        if (self::shouldSkipTitle($title)) {
             return;
         }
 
         $pageTitle = $title->getPrefixedText();
+        self::runEmbeddingOp(
+            'delete',
+            $pageTitle,
+            fn (EmbeddingsClient $c) => $c->deletePage($user, $pageTitle)
+        );
+    }
 
-        // Execute immediately (synchronous) for reliability
+    /**
+     * Skip talk pages and user pages to avoid embedding huge volumes
+     * of irrelevant content.
+     */
+    private static function shouldSkipTitle(Title $title): bool
+    {
+        return $title->isTalkPage() || $title->getNamespace() === NS_USER;
+    }
+
+    /**
+     * Execute an embedding operation and log success / failure consistently.
+     *
+     * @param string $op Operation label used in log messages ("update" / "delete").
+     * @param string $pageTitle Page being operated on (for log context).
+     * @param callable $callback Receives an EmbeddingsClient and returns its response array.
+     */
+    private static function runEmbeddingOp(string $op, string $pageTitle, callable $callback): void
+    {
+        $logger = self::logger();
         $client = new EmbeddingsClient();
+
         try {
-            $res = $client->deletePage($user, $pageTitle);
+            $res = $callback($client);
             if (isset($res['error'])) {
-                $logger->error('AutoEmbed delete failed for {page}: {error}', [
+                $logger->error('AutoEmbed {op} failed for {page}: {error}', [
+                    'op' => $op,
                     'page' => $pageTitle,
-                    'error' => $res['message'] ?? 'Unknown error'
+                    'error' => $res['message'] ?? 'Unknown error',
                 ]);
             } else {
-                $logger->debug('AutoEmbed delete success for {page}', ['page' => $pageTitle]);
+                $logger->debug('AutoEmbed {op} success for {page}', [
+                    'op' => $op,
+                    'page' => $pageTitle,
+                ]);
             }
         } catch (\Throwable $e) {
-            $logger->error('AutoEmbed delete error: ' . $e->getMessage());
+            $logger->error('AutoEmbed {op} exception for {page}: {error}', [
+                'op' => $op,
+                'page' => $pageTitle,
+                'error' => $e->getMessage(),
+            ]);
         }
+    }
+
+    private static function logger(): LoggerInterface
+    {
+        return LoggerFactory::getInstance(Config::LOGGER_CHANNEL);
     }
 }
