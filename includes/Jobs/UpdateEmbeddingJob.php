@@ -73,13 +73,11 @@ class UpdateEmbeddingJob extends Job
             );
 
             if (isset($res['error'])) {
-                $msg = $res['message'] ?? 'embedding update failed';
-                $logger->warning('UpdateEmbeddingJob {title} -> server error: {err}', [
-                    'title' => $title->getPrefixedText(),
-                    'err' => $msg,
-                ]);
-                $this->setLastError($msg);
-                return false;  // triggers retry with backoff
+                return $this->handleClientError(
+                    $logger,
+                    $title->getPrefixedText(),
+                    $res
+                );
             }
 
             $logger->debug('UpdateEmbeddingJob {title} -> queued on MCP', [
@@ -105,6 +103,42 @@ class UpdateEmbeddingJob extends Job
     private function resolveUser(): User
     {
         return User::newSystemUser('MWAssistant Embedder', ['steal' => true]);
+    }
+
+    /**
+     * Decide whether a server error from EmbeddingsClient should be retried.
+     *
+     * 4xx (other than 429) is the server telling us the request itself is
+     * wrong — retrying with the same payload will fail the same way. Drop the
+     * job loudly and let humans investigate. 5xx, 429, and transport errors
+     * are transient by nature: backoff and retry.
+     *
+     * @param array{status?:int|null,message?:string} $res
+     */
+    private function handleClientError(LoggerInterface $logger, string $title, array $res): bool
+    {
+        $status = (int) ($res['status'] ?? 0);
+        $msg = $res['message'] ?? 'embedding update failed';
+
+        $isPermanent = $status >= 400 && $status < 500 && $status !== 429;
+
+        if ($isPermanent) {
+            $logger->error(
+                'UpdateEmbeddingJob {title} -> permanent failure ({status}); dropping job: {err}',
+                ['title' => $title, 'status' => $status, 'err' => $msg]
+            );
+            // Returning true marks the job complete so MW removes it. The
+            // ERROR log is the dead-letter signal — searchable by the title
+            // and the status code.
+            return true;
+        }
+
+        $logger->warning(
+            'UpdateEmbeddingJob {title} -> transient failure ({status}); will retry: {err}',
+            ['title' => $title, 'status' => $status, 'err' => $msg]
+        );
+        $this->setLastError($msg);
+        return false;
     }
 
     private function logger(): LoggerInterface

@@ -48,11 +48,20 @@ class DeleteEmbeddingJob extends Job
             );
 
             if (isset($res['error'])) {
+                $status = (int) ($res['status'] ?? 0);
                 $msg = $res['message'] ?? 'embedding delete failed';
-                $logger->warning('DeleteEmbeddingJob {title} -> server error: {err}', [
-                    'title' => $prefixedTitle,
-                    'err' => $msg,
-                ]);
+                $isPermanent = $status >= 400 && $status < 500 && $status !== 429;
+                if ($isPermanent) {
+                    $logger->error(
+                        'DeleteEmbeddingJob {title} -> permanent failure ({status}); dropping job: {err}',
+                        ['title' => $prefixedTitle, 'status' => $status, 'err' => $msg]
+                    );
+                    return true;
+                }
+                $logger->warning(
+                    'DeleteEmbeddingJob {title} -> transient failure ({status}); will retry: {err}',
+                    ['title' => $prefixedTitle, 'status' => $status, 'err' => $msg]
+                );
                 $this->setLastError($msg);
                 return false;
             }

@@ -124,12 +124,19 @@ class AutoEmbeddingHooks
     }
 
     /**
-     * Skip talk pages and user pages to avoid embedding huge volumes
-     * of irrelevant content.
+     * Decide whether a title is excluded from embedding by config.
+     *
+     * Defaults match the historical behavior (skip talk pages and NS_USER) but
+     * are overridable via $wgMWAssistantEmbedSkipNamespaces and
+     * $wgMWAssistantEmbedTalkPages, e.g. for research wikis where user pages
+     * carry valuable content.
      */
     private static function shouldSkipTitle(Title $title): bool
     {
-        return $title->isTalkPage() || $title->getNamespace() === NS_USER;
+        if ($title->isTalkPage() && !Config::shouldEmbedTalkPages()) {
+            return true;
+        }
+        return in_array($title->getNamespace(), Config::getEmbedSkipNamespaces(), true);
     }
 
     private static function enqueueUpdate(Title $title): void

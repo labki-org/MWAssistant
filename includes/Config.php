@@ -133,6 +133,36 @@ class Config
     }
 
     /**
+     * Namespace IDs that should never be embedded.
+     *
+     * @return int[]
+     */
+    public static function getEmbedSkipNamespaces(): array
+    {
+        $raw = self::cfg()->get('MWAssistantEmbedSkipNamespaces');
+        if (!is_array($raw)) {
+            return [];
+        }
+        $out = [];
+        foreach ($raw as $ns) {
+            if (is_int($ns) || (is_string($ns) && ctype_digit($ns))) {
+                $out[] = (int) $ns;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Whether talk-namespace pages should be embedded.
+     *
+     * @return bool
+     */
+    public static function shouldEmbedTalkPages(): bool
+    {
+        return (bool) self::cfg()->get('MWAssistantEmbedTalkPages');
+    }
+
+    /**
      * Unique identifier for this wiki instance (required for multi-tenant MCP).
      *
      * @return string Non-empty wiki identifier
