@@ -655,6 +655,7 @@
             this._activeToolNodes.clear();
             let dismissThinking = this.showThinkingIndicator('Thinking…');
             let sawFinalAssistant = false;
+            let sawAnyEvent = false;
 
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
@@ -672,6 +673,11 @@
                         buffer = buffer.slice(sepIndex + 2);
                         const parsed = this.parseSseFrame(frame);
                         if (!parsed) continue;
+                        sawAnyEvent = true;
+
+                        // Heartbeat just confirms the pipe is alive — don't
+                        // surface it, but it does count as "we got bytes".
+                        if (parsed.event === 'heartbeat') continue;
 
                         // Hide the placeholder spinner the instant any signal arrives.
                         if (dismissThinking) {
@@ -691,6 +697,15 @@
             } finally {
                 if (dismissThinking) dismissThinking();
                 this._activeToolNodes.clear();
+            }
+
+            // If the stream completed but no events ever arrived, the response
+            // body was empty — almost always a reverse-proxy / output-buffering
+            // issue between PHP and the browser. Surface it clearly instead of
+            // leaving the user staring at an empty chat.
+            if (!sawAnyEvent) {
+                console.warn('MWAssistant: stream closed with no events. Likely server-side buffering (mod_deflate / FastCGI). See Special:MWAssistantStream proxy notes.');
+                this.appendMessage('assistant', 'Error: the assistant connection closed without sending a response. This usually means the web server is buffering the streaming response. Check Apache mod_deflate and FastCGI flushpackets settings.');
             }
         }
 

@@ -136,16 +136,26 @@ class SpecialMWAssistantStream extends UnlistedSpecialPage
      */
     private function streamSse(array $payload, string $jwt): void
     {
+        $this->disableAllBuffering();
+
         header('Content-Type: text/event-stream; charset=utf-8');
         header('Cache-Control: no-cache, no-store, must-revalidate');
         header('Pragma: no-cache');
         header('X-Accel-Buffering: no');
         header('Connection: keep-alive');
+        header('Content-Encoding: identity');
+        header_remove('Content-Length');
 
-        while (ob_get_level() > 0) {
-            @ob_end_flush();
-        }
-        @ob_implicit_flush(true);
+        // Emit a 4 KB SSE comment immediately. SSE comments (lines beginning
+        // with ":") are ignored by clients but force any FastCGI / mod_proxy
+        // buffer to flush, since the default Apache FastCGI buffer is ~4 KB.
+        echo ':' . str_repeat(' ', 4096) . "\n\n";
+        $this->flushAllBuffers();
+
+        // Fire a heartbeat so the JS client can confirm the stream is alive
+        // even before the LLM produces its first token.
+        echo "event: heartbeat\ndata: {\"ts\":" . time() . "}\n\n";
+        $this->flushAllBuffers();
 
         $url = Config::getMCPBaseUrl() . '/chat/stream';
         $body = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
@@ -177,7 +187,7 @@ class SpecialMWAssistantStream extends UnlistedSpecialPage
                     return -1;
                 }
                 echo $chunk;
-                @flush();
+                $this->flushAllBuffers();
                 return strlen($chunk);
             },
         ]);
@@ -211,5 +221,54 @@ class SpecialMWAssistantStream extends UnlistedSpecialPage
         http_response_code($httpCode);
         header('Content-Type: application/json');
         echo json_encode(['error' => $code, 'message' => $message]);
+    }
+
+    /**
+     * Defense-in-depth: disable every layer of output buffering / compression
+     * we know about so each echo + flush() actually reaches the client.
+     *
+     * Stacks we have to defeat, from innermost to outermost:
+     *   1. PHP user-level ob_start() buffers (incl. MW's own).
+     *   2. PHP zlib.output_compression (gzip in the engine).
+     *   3. PHP output_handler / output_buffering ini directives.
+     *   4. Apache mod_deflate (when DEFLATE filter is active).
+     *   5. mod_proxy_fcgi default 8 KB write buffer (php-fpm setups).
+     *
+     * Layers 4 + 5 also need server-side config (mod_deflate exclusion,
+     * `flushpackets=on` on ProxyPass) — see deploy notes — but the
+     * `apache_setenv('no-gzip')` hint plus the 4 KB SSE warmup comment
+     * cover the common defaults.
+     */
+    private function disableAllBuffering(): void
+    {
+        // MediaWiki's helper drains every buffer level it can find.
+        if (function_exists('wfResetOutputBuffers')) {
+            wfResetOutputBuffers();
+        }
+        while (ob_get_level() > 0) {
+            @ob_end_flush();
+        }
+
+        @ini_set('zlib.output_compression', '0');
+        @ini_set('output_buffering', '0');
+        @ini_set('implicit_flush', '1');
+        @ob_implicit_flush(true);
+
+        // Apache mod_deflate / mod_gzip respect these per-request hints.
+        if (function_exists('apache_setenv')) {
+            @apache_setenv('no-gzip', '1');
+            @apache_setenv('dont-vary', '1');
+        }
+    }
+
+    /**
+     * Flush every buffer layer that's still active. Cheap to call repeatedly.
+     */
+    private function flushAllBuffers(): void
+    {
+        while (ob_get_level() > 0) {
+            @ob_flush();
+        }
+        @flush();
     }
 }
