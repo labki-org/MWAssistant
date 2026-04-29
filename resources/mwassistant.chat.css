@@ -401,3 +401,80 @@
     margin-bottom: 5px;
     color: #202124;
 }
+
+/* Streaming: pending tool block (spinner + status until result arrives) */
+.mwassistant-tool-pending .mwassistant-tool-summary {
+    background-color: #fff8e1;
+}
+
+.mwassistant-tool-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin: 0 6px;
+    border: 2px solid #c8ccd1;
+    border-top-color: #1a73e8;
+    border-radius: 50%;
+    animation: mwassistant-spin 0.8s linear infinite;
+    vertical-align: middle;
+}
+
+@keyframes mwassistant-spin {
+    to { transform: rotate(360deg); }
+}
+
+.mwassistant-tool-status {
+    font-size: 0.85em;
+    color: #5f6368;
+    font-style: italic;
+}
+
+.mwassistant-tool-elapsed {
+    margin-left: 8px;
+    font-size: 0.75em;
+    color: #80868b;
+    font-family: monospace;
+}
+
+.mwassistant-tool-error .mwassistant-tool-summary {
+    background-color: #fce8e6;
+}
+
+/* Streaming: "thinking..." indicator while waiting between events */
+.mwassistant-msg-thinking {
+    align-self: flex-start;
+    background-color: transparent;
+    color: #5f6368;
+    font-size: 0.9em;
+    padding: 4px 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: none;
+}
+
+.mwassistant-thinking-dots {
+    display: inline-flex;
+    gap: 3px;
+}
+
+.mwassistant-thinking-dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #5f6368;
+    animation: mwassistant-thinking-pulse 1.2s infinite ease-in-out;
+}
+
+.mwassistant-thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+.mwassistant-thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes mwassistant-thinking-pulse {
+    0%, 80%, 100% { opacity: 0.25; transform: scale(0.8); }
+    40% { opacity: 1; transform: scale(1); }
+}
+
+.mwassistant-thinking-label {
+    color: #5f6368;
+    font-style: italic;
+}
