@@ -402,6 +402,28 @@
     color: #202124;
 }
 
+.mwassistant-tool-truncated {
+    background-color: #fff8e1;
+    color: #b06000;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    margin: 4px 0 8px;
+}
+
+.mwassistant-tool-meta {
+    font-size: 0.8em;
+    color: #5f6368;
+    margin: 0 0 6px;
+}
+
+.mwassistant-tool-suggestions {
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px dashed #e0e0e0;
+    font-size: 0.9em;
+}
+
 /* Streaming: pending tool block (spinner + status until result arrives) */
 .mwassistant-tool-pending .mwassistant-tool-summary {
     background-color: #fff8e1;
