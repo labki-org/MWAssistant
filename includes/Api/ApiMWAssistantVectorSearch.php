@@ -2,7 +2,6 @@
 
 namespace MWAssistant\Api;
 
-use MWAssistant\Api\ApiMWAssistantBase;
 use MWAssistant\MCP\VectorSearchClient;
 
 /**

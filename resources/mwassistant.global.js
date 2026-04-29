@@ -1,85 +1,81 @@
+/**
+ * MWAssistant – Global "Ask Assistant" shortcut on MediaWiki search bars.
+ *
+ * Adds a small shortcut button that appears once a query exceeds a minimum
+ * length, sending the user to Special:MWAssistant pre-filled with their
+ * query. The button is intentionally scoped to MediaWiki's known search
+ * forms so it never overlaps unrelated text inputs on the page.
+ */
 (function (mw, $) {
-    console.log('MWAssistant Global: Script execution started');
+    'use strict';
 
-    $(function () {
-        console.log('MWAssistant Global: Document Ready');
+    var MIN_LENGTH = 10;
+    var BUTTON_CLASS = 'mwassistant-search-btn';
+    var ATTACHED_FLAG = 'mwassistantAttached';
 
-        var MIN_LENGTH = 10;
-        var buttonId = 'mwassistant-search-btn';
+    // Limit ourselves to MediaWiki's actual search forms. Skins like Vector
+    // 2022 may render the header search via Vue, so we use event delegation
+    // and re-check the form context on each event rather than caching.
+    var SEARCH_FORM_SELECTORS = [
+        '#searchform',                // Monobook, generic
+        '#simpleSearch',              // Vector legacy header search
+        '#p-search',                  // Sidebar search portlet
+        '.mw-search-form-wrapper',    // Special:Search
+        '.vector-search-box'          // Vector 2022
+    ].join(', ');
 
-        // Use event delegation to handle Vue re-renders or dynamic inputs
-        $(document).on('input keyup focus', 'input[name="search"], input[type="search"], #searchInput', function () {
-            var $this = $(this);
-            var val = $this.val() || '';
-            // console.log('MWAssistant Global: Input event. Length:', val.length);
+    var INPUT_DELEGATE_SELECTOR = 'input[name="search"], input[type="search"], #searchInput';
 
-            // Find or related button
-            // The button might be a sibling or inside the same wrapper. 
-            // Since we might have multiple search inputs (mobile/desktop), we need to be careful.
-            // Let's create a unique ID for the button related to *this* input if possible? 
-            // actually, let's just look for the button relative to this input.
-
-            var $btn = $this.parent().find('.' + buttonId);
-            if (!$btn.length) {
-                // If button lost (re-render) or not created, ensure it exists
-                ensureButton($this);
-                $btn = $this.parent().find('.' + buttonId);
-            }
-
-            if (val.length >= MIN_LENGTH) {
-                if ($btn.is(':hidden')) {
-                    console.log('MWAssistant Global: Showing button');
-                    $btn.fadeIn(200);
+    function buildButton($input) {
+        return $('<button>')
+            .addClass(BUTTON_CLASS + ' mw-ui-button mw-ui-quiet')
+            .attr({
+                type: 'button',
+                title: 'Ask the AI Assistant about this query'
+            })
+            .text('Ask Assistant')
+            .hide()
+            .on('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var query = $input.val();
+                if (!query) {
+                    return;
                 }
-            } else {
-                if ($btn.is(':visible')) {
-                    console.log('MWAssistant Global: Hiding button');
-                    $btn.fadeOut(200);
-                }
-            }
-        });
+                var url = mw.util.getUrl('Special:MWAssistant');
+                url += (url.indexOf('?') > -1 ? '&' : '?') + 'q=' + encodeURIComponent(query);
+                window.location.href = url;
+            });
+    }
 
-        // Function to inject button
-        function ensureButton($input) {
-            // Check if already exists nearby
-            if ($input.parent().find('.' + buttonId).length) {
-                return;
-            }
+    function attachButton($input) {
+        if ($input.data(ATTACHED_FLAG)) {
+            return $input.data('mwassistantBtn');
+        }
+        var $btn = buildButton($input);
+        $input.data(ATTACHED_FLAG, true).data('mwassistantBtn', $btn);
+        $input.parent().addClass('mwassistant-search-host').append($btn);
+        return $btn;
+    }
 
-            console.log('MWAssistant Global: Injecting button for', $input.attr('id') || $input.attr('name'));
+    $(document).on('input.mwassistant keyup.mwassistant focus.mwassistant', INPUT_DELEGATE_SELECTOR, function () {
+        var $input = $(this);
 
-            var $assistantBtn = $('<button>')
-                .addClass(buttonId + ' mw-ui-button mw-ui-quiet')
-                .attr('type', 'button') // Prevent submit behavior
-                .text('Ask Assistant')
-                .attr('title', 'Ask the AI Assistant about this query')
-                .hide()
-                .on('click', function (e) {
-                    e.preventDefault();
-                    e.stopPropagation(); // Stop propagation to prevent search submit
-                    var query = $input.val();
-                    if (query) {
-                        var targetUrl = mw.util.getUrl('Special:MWAssistant');
-                        window.location.href = targetUrl + (targetUrl.indexOf('?') > -1 ? '&' : '?') + 'q=' + encodeURIComponent(query);
-                    }
-                });
-
-            // Insert after input
-            $input.after($assistantBtn);
-
-            // Fix parent position for absolute button
-            if ($input.parent().css('position') === 'static') {
-                $input.parent().css('position', 'relative');
-            }
+        // Only attach inside known MediaWiki search forms.
+        if (!$input.closest(SEARCH_FORM_SELECTORS).length) {
+            return;
         }
 
-        // Periodic check to re-inject if lost (fallback for when user is NOT typing)
-        setInterval(function () {
-            var $inputs = $('input[name="search"], input[type="search"], #searchInput');
-            $inputs.each(function () {
-                ensureButton($(this));
-            });
-        }, 2000);
+        var $btn = attachButton($input);
+        var val = $input.val() || '';
 
+        if (val.length >= MIN_LENGTH) {
+            if ($btn.is(':hidden')) {
+                $btn.fadeIn(150);
+            }
+        } else if ($btn.is(':visible')) {
+            $btn.fadeOut(150);
+        }
     });
+
 }(mediaWiki, jQuery));

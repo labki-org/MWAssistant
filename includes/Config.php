@@ -19,6 +19,8 @@ use RuntimeException;
  */
 class Config
 {
+    /** Logger channel used throughout the extension (matches wgDebugLogGroups). */
+    public const LOGGER_CHANNEL = 'mwassistant';
 
     /** @var MWConfig|null Cached reference to MediaWiki's main config */
     private static ?MWConfig $mainConfig = null;

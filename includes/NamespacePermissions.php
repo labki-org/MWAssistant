@@ -53,21 +53,4 @@ class NamespacePermissions
 
         return $readable;
     }
-
-    /**
-     * Check if a user can read a specific namespace.
-     *
-     * @param UserIdentity $user
-     * @param int $namespaceId
-     * @return bool
-     */
-    public static function canReadNamespace(UserIdentity $user, int $namespaceId): bool
-    {
-        $services = MediaWikiServices::getInstance();
-        $permissionManager = $services->getPermissionManager();
-
-        $testTitle = Title::makeTitle($namespaceId, 'MWAssistant_NamespaceCheck_Dummy');
-
-        return $permissionManager->userCan('read', $user, $testTitle);
-    }
 }

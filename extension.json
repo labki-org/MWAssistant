@@ -103,6 +103,9 @@
         },
         "MWAssistantEmbeddings": {
             "class": "MWAssistant\\Special\\SpecialMWAssistantEmbeddings"
+        },
+        "MWAssistantStream": {
+            "class": "MWAssistant\\Special\\SpecialMWAssistantStream"
         }
     },
     "Hooks": {
