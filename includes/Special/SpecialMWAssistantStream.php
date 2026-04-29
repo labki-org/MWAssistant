@@ -4,6 +4,7 @@ namespace MWAssistant\Special;
 
 use MediaWiki\Logger\LoggerFactory;
 use MediaWiki\SpecialPage\UnlistedSpecialPage;
+use MWAssistant\Chat\ChatRequestValidator;
 use MWAssistant\Config;
 use MWAssistant\HttpClient;
 use MWAssistant\JWT;
@@ -25,8 +26,6 @@ use Throwable;
  */
 class SpecialMWAssistantStream extends UnlistedSpecialPage
 {
-    private const ALLOWED_ROLES = ['user', 'assistant', 'system'];
-    private const ALLOWED_CONTEXTS = ['chat', 'editor'];
     private const STREAM_TIMEOUT_SECONDS = 300;
 
     public function __construct()
@@ -73,30 +72,16 @@ class SpecialMWAssistantStream extends UnlistedSpecialPage
         $sessionId = $payload['session_id'] ?? null;
         $context = $payload['context'] ?? 'chat';
 
-        if (!is_array($messages) || empty($messages)) {
-            $this->writeErrorAndExit(400, 'bad_messages', 'messages must be a non-empty array.');
+        $err = ChatRequestValidator::validateMessages($messages, true);
+        if ($err === null) {
+            $err = ChatRequestValidator::validateContext($context);
+        }
+        if ($err === null) {
+            $err = ChatRequestValidator::validateSessionId($sessionId);
+        }
+        if ($err !== null) {
+            $this->writeErrorAndExit(400, $err[0], $err[1]);
             return;
-        }
-        if (!in_array($context, self::ALLOWED_CONTEXTS, true)) {
-            $this->writeErrorAndExit(400, 'bad_context', 'context must be "chat" or "editor".');
-            return;
-        }
-        if ($sessionId !== null && $sessionId !== '') {
-            if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $sessionId)) {
-                $this->writeErrorAndExit(400, 'bad_session_id', 'session_id must be a UUID v4.');
-                return;
-            }
-        }
-        foreach ($messages as $i => $msg) {
-            if (!is_array($msg)
-                || !isset($msg['role'])
-                || !in_array($msg['role'], self::ALLOWED_ROLES, true)
-                || !isset($msg['content'])
-                || !is_string($msg['content'])
-            ) {
-                $this->writeErrorAndExit(400, 'bad_message', "Message at index {$i} is malformed.");
-                return;
-            }
         }
 
         $upstream = [
@@ -150,12 +135,10 @@ class SpecialMWAssistantStream extends UnlistedSpecialPage
         // with ":") are ignored by clients but force any FastCGI / mod_proxy
         // buffer to flush, since the default Apache FastCGI buffer is ~4 KB.
         echo ':' . str_repeat(' ', 4096) . "\n\n";
-        $this->flushAllBuffers();
+        @flush();
 
-        // Fire a heartbeat so the JS client can confirm the stream is alive
-        // even before the LLM produces its first token.
         echo "event: heartbeat\ndata: {\"ts\":" . time() . "}\n\n";
-        $this->flushAllBuffers();
+        @flush();
 
         $url = Config::getMCPBaseUrl() . '/chat/stream';
         $body = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
@@ -164,39 +147,41 @@ class SpecialMWAssistantStream extends UnlistedSpecialPage
         }
 
         $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => $url,
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => $body,
-            CURLOPT_HTTPHEADER => [
-                'Authorization: Bearer ' . $jwt,
-                'Content-Type: application/json',
-                'Accept: text/event-stream',
-                'User-Agent: MWAssistant/1.0.0 (MediaWiki streaming proxy)',
-                'X-Request-ID: ' . bin2hex(random_bytes(8)),
-            ],
-            CURLOPT_TIMEOUT => self::STREAM_TIMEOUT_SECONDS,
-            CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_RETURNTRANSFER => false,
-            CURLOPT_HEADER => false,
-            CURLOPT_BUFFERSIZE => 256,
-            CURLOPT_TCP_NODELAY => true,
-            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-            CURLOPT_WRITEFUNCTION => function ($ch, $chunk) {
-                if (connection_aborted()) {
-                    return -1;
-                }
-                echo $chunk;
-                $this->flushAllBuffers();
-                return strlen($chunk);
-            },
-        ]);
+        try {
+            curl_setopt_array($ch, [
+                CURLOPT_URL => $url,
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => $body,
+                CURLOPT_HTTPHEADER => [
+                    'Authorization: Bearer ' . $jwt,
+                    'Content-Type: application/json',
+                    'Accept: text/event-stream',
+                    'User-Agent: MWAssistant/1.0.0 (MediaWiki streaming proxy)',
+                    'X-Request-ID: ' . bin2hex(random_bytes(8)),
+                ],
+                CURLOPT_TIMEOUT => self::STREAM_TIMEOUT_SECONDS,
+                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_RETURNTRANSFER => false,
+                CURLOPT_HEADER => false,
+                CURLOPT_TCP_NODELAY => true,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_WRITEFUNCTION => function ($ch, $chunk) {
+                    if (connection_aborted()) {
+                        return -1;
+                    }
+                    echo $chunk;
+                    @flush();
+                    return strlen($chunk);
+                },
+            ]);
 
-        $ok = curl_exec($ch);
-        $errno = curl_errno($ch);
-        $errstr = curl_error($ch);
-        $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+            $ok = curl_exec($ch);
+            $errno = curl_errno($ch);
+            $errstr = curl_error($ch);
+            $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        } finally {
+            curl_close($ch);
+        }
 
         if (!$ok && !connection_aborted()) {
             $logger = LoggerFactory::getInstance(Config::LOGGER_CHANNEL);
@@ -241,12 +226,12 @@ class SpecialMWAssistantStream extends UnlistedSpecialPage
      */
     private function disableAllBuffering(): void
     {
-        // MediaWiki's helper drains every buffer level it can find.
         if (function_exists('wfResetOutputBuffers')) {
             wfResetOutputBuffers();
-        }
-        while (ob_get_level() > 0) {
-            @ob_end_flush();
+        } else {
+            while (ob_get_level() > 0) {
+                @ob_end_flush();
+            }
         }
 
         @ini_set('zlib.output_compression', '0');
@@ -261,14 +246,4 @@ class SpecialMWAssistantStream extends UnlistedSpecialPage
         }
     }
 
-    /**
-     * Flush every buffer layer that's still active. Cheap to call repeatedly.
-     */
-    private function flushAllBuffers(): void
-    {
-        while (ob_get_level() > 0) {
-            @ob_flush();
-        }
-        @flush();
-    }
 }

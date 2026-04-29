@@ -105,9 +105,9 @@
                         </div>
 
                         <div class="mwassistant-chat-input">
-                            <textarea 
-                                id="mwassistant-chat-input-text" 
-                                rows="3" 
+                            <textarea
+                                id="mwassistant-chat-input-text"
+                                rows="3"
                                 placeholder="What's on your mind?"
                             ></textarea>
                             <button id="mwassistant-chat-send">Send</button>
@@ -117,6 +117,7 @@
             `;
 
             this.$container.html(html);
+            this.$log = this.$container.find('#mwassistant-chat-log');
         }
 
         /* ------------------------------------------------------------------
@@ -180,7 +181,8 @@
         }
 
         async loadSession(sessionId) {
-            const $log = this.$container.find('#mwassistant-chat-log');
+            this._activeToolNodes.clear();
+            const $log = this.$log;
             $log.html('<div class="mwassistant-loading">Loading conversation...</div>');
 
             try {
@@ -237,9 +239,10 @@
         }
 
         startNewChat() {
+            this._activeToolNodes.clear();
             this.sessionId = null;
             this.$container.find('#mwassistant-chat-title').text('New Chat');
-            this.$container.find('#mwassistant-chat-log').html(`
+            this.$log.html(`
                 <div class="mwassistant-welcome">
                     <p>Welcome to MWAssistant! Ask me anything about this wiki.</p>
                 </div>
@@ -328,7 +331,7 @@
          * ------------------------------------------------------------------ */
 
         appendMessage(role, content) {
-            const $log = this.$container.find('#mwassistant-chat-log');
+            const $log = this.$log;
             
             // Remove welcome message if present
             $log.find('.mwassistant-welcome').remove();
@@ -447,7 +450,7 @@
          * Returns the jQuery node so it can later be upgraded with the result.
          */
         appendToolPending(toolName, rawArgs) {
-            const $log = this.$container.find('#mwassistant-chat-log');
+            const $log = this.$log;
             $log.find('.mwassistant-welcome').remove();
 
             const args = this.normalizeToolArgs(rawArgs);
@@ -508,12 +511,14 @@
             );
             $msg.find('.mwassistant-tool-result-content').html(displayResult);
 
-            const $log = this.$container.find('#mwassistant-chat-log');
+            const $log = this.$log;
             $log.scrollTop($log.prop('scrollHeight'));
         }
 
         /**
-         * Backwards-compatible single-shot tool render (used by non-streaming path).
+         * Render a tool block in one shot (no pending → final transition).
+         * Used by the buffered (non-streaming) path and as a fallback when a
+         * tool_result arrives without a matching tool_start.
          */
         appendToolMessage(toolName, rawArgs, result) {
             const $msg = this.appendToolPending(toolName, rawArgs);
@@ -525,7 +530,7 @@
          * Returns a function that removes the indicator.
          */
         showThinkingIndicator(label) {
-            const $log = this.$container.find('#mwassistant-chat-log');
+            const $log = this.$log;
             $log.find('.mwassistant-welcome').remove();
 
             const $msg = $('<div>').addClass('mwassistant-msg mwassistant-msg-thinking');
@@ -659,6 +664,7 @@
 
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
+            const MAX_BUFFER_BYTES = 4 * 1024 * 1024;
             let buffer = '';
 
             try {
@@ -666,6 +672,12 @@
                     const { value, done } = await reader.read();
                     if (done) break;
                     buffer += decoder.decode(value, { stream: true });
+
+                    if (buffer.length > MAX_BUFFER_BYTES) {
+                        console.warn('MWAssistant: SSE buffer exceeded ' + MAX_BUFFER_BYTES + ' bytes; aborting stream.');
+                        await reader.cancel();
+                        break;
+                    }
 
                     let sepIndex;
                     while ((sepIndex = buffer.indexOf('\n\n')) !== -1) {
@@ -685,8 +697,9 @@
                             dismissThinking = null;
                         }
 
-                        const result = this.handleStreamEvent(parsed.event, parsed.data);
-                        if (result === 'final') sawFinalAssistant = true;
+                        if (this.handleStreamEvent(parsed.event, parsed.data)) {
+                            sawFinalAssistant = true;
+                        }
 
                         // After tool_result the LLM is thinking again until the next event.
                         if (parsed.event === 'tool_result' && !sawFinalAssistant) {
@@ -699,13 +712,13 @@
                 this._activeToolNodes.clear();
             }
 
-            // If the stream completed but no events ever arrived, the response
-            // body was empty — almost always a reverse-proxy / output-buffering
-            // issue between PHP and the browser. Surface it clearly instead of
-            // leaving the user staring at an empty chat.
+            // If the stream closed without any events, the response body was
+            // empty — almost always a reverse-proxy / output-buffering issue
+            // between PHP and the browser. Show a generic message; the
+            // diagnostic detail goes to console for the operator.
             if (!sawAnyEvent) {
-                console.warn('MWAssistant: stream closed with no events. Likely server-side buffering (mod_deflate / FastCGI). See Special:MWAssistantStream proxy notes.');
-                this.appendMessage('assistant', 'Error: the assistant connection closed without sending a response. This usually means the web server is buffering the streaming response. Check Apache mod_deflate and FastCGI flushpackets settings.');
+                console.warn('MWAssistant: stream closed with no events. Likely server-side buffering (Apache mod_deflate / FastCGI flushpackets). See Special:MWAssistantStream proxy notes.');
+                this.appendMessage('assistant', 'Error: the assistant connection closed before sending a response.');
             }
         }
 
@@ -744,8 +757,8 @@
         }
 
         /**
-         * Dispatch a parsed SSE event into UI updates. Returns 'final' when
-         * the user-visible answer was rendered (so the caller stops the
+         * Dispatch a parsed SSE event into UI updates. Returns true when the
+         * user-visible answer was rendered (so the caller stops the
          * "thinking" indicator).
          */
         handleStreamEvent(event, data) {
@@ -756,12 +769,12 @@
                         this.sessionId = data.session_id;
                         if (fresh) this.loadSessions();
                     }
-                    return null;
+                    return false;
                 }
                 case 'tool_start': {
                     const $node = this.appendToolPending(data.name, data.args || {});
                     if (data.call_id) this._activeToolNodes.set(data.call_id, $node);
-                    return null;
+                    return false;
                 }
                 case 'tool_result': {
                     const $node = data.call_id
@@ -777,33 +790,27 @@
                         // No matching start — render in one shot as a fallback.
                         this.appendToolMessage(data.name, {}, data.result_preview);
                     }
-                    return null;
+                    return false;
                 }
                 case 'assistant_message': {
-                    if (!data.content) return null;
-                    if (data.is_final) {
-                        this.appendMessage('assistant', data.content);
-                        return 'final';
-                    }
-                    // Intermediate assistant text (between tool calls) — render
-                    // so the user sees the model's narration.
+                    if (!data.content) return false;
                     this.appendMessage('assistant', data.content);
-                    return null;
+                    return !!data.is_final;
                 }
                 case 'error': {
                     const msg = (data && data.message) || 'The assistant ran into an error.';
                     this.appendMessage('assistant', 'Error: ' + msg);
-                    return 'final';
+                    return true;
                 }
                 case 'done': {
                     // Refresh sidebar so the new title appears for first turns.
                     if (data.session_id && !this.hideSessions) {
                         this.loadSessions();
                     }
-                    return null;
+                    return false;
                 }
                 default:
-                    return null;
+                    return false;
             }
         }
 
