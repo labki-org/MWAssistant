@@ -66,6 +66,10 @@
             "styles": [
                 "resources/mwassistant.global.css"
             ],
+            "messages": [
+                "mwassistant-search-icon-title",
+                "mwassistant-search-icon-label"
+            ],
             "dependencies": [
                 "mediawiki.util",
                 "jquery"
@@ -111,7 +115,12 @@
     "Hooks": {
         "BeforePageDisplay": "MWAssistant\\Hooks\\MWAssistantHooks::onBeforePageDisplay",
         "PageSaveComplete": "MWAssistant\\Hooks\\AutoEmbeddingHooks::onPageSaveComplete",
-        "PageDeleteComplete": "MWAssistant\\Hooks\\AutoEmbeddingHooks::onPageDeleteComplete"
+        "PageDeleteComplete": "MWAssistant\\Hooks\\AutoEmbeddingHooks::onPageDeleteComplete",
+        "PageMoveComplete": "MWAssistant\\Hooks\\AutoEmbeddingHooks::onPageMoveComplete"
+    },
+    "JobClasses": {
+        "mwassistantUpdateEmbedding": "MWAssistant\\Jobs\\UpdateEmbeddingJob",
+        "mwassistantDeleteEmbedding": "MWAssistant\\Jobs\\DeleteEmbeddingJob"
     },
     "AvailableRights": [
         "mwassistant-use"
@@ -156,6 +165,14 @@
         "MWAssistantWikiApiUrl": {
             "value": "",
             "description": "Publicly accessible API URL for this wiki (e.g. https://wiki.example.com/api.php)"
+        },
+        "MWAssistantEmbedSkipNamespaces": {
+            "value": [2],
+            "description": "Namespace IDs to skip when auto-embedding. Default skips NS_USER (2) since user pages are usually personal/scratch content. Set to [] to embed everything."
+        },
+        "MWAssistantEmbedTalkPages": {
+            "value": false,
+            "description": "If false (default), talk pages are skipped from auto-embedding. Set true on wikis where talk-page content is part of the searchable knowledge base."
         }
     },
     "manifest_version": 2

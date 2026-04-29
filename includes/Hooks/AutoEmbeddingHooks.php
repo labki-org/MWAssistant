@@ -2,34 +2,28 @@
 
 namespace MWAssistant\Hooks;
 
-use MediaWiki\Content\ContentHandler;
 use MediaWiki\Logger\LoggerFactory;
+use MediaWiki\MediaWikiServices;
+use MediaWiki\Page\PageIdentity;
 use MediaWiki\Revision\RevisionRecord;
-use MediaWiki\Revision\SlotRecord;
 use MediaWiki\Title\Title;
 use MediaWiki\User\UserIdentity;
 use MWAssistant\Config;
-use MWAssistant\MCP\EmbeddingsClient;
+use MWAssistant\Jobs\DeleteEmbeddingJob;
+use MWAssistant\Jobs\UpdateEmbeddingJob;
 use Psr\Log\LoggerInterface;
 
 /**
- * Automatically updates or deletes embeddings on the MCP server
- * whenever a page is saved or removed.
+ * Hooks that translate page lifecycle events into embedding-update/delete jobs.
+ *
+ * The hooks themselves are deliberately tiny: they only enqueue. All MCP I/O
+ * happens in the job runner so page saves don't block on network latency and
+ * MCP outages don't surface as save errors.
  */
 class AutoEmbeddingHooks
 {
-
     /**
-     * Fired after a successful page save (edit, new page, or null edit).
-     *
      * @see https://www.mediawiki.org/wiki/Manual:Hooks/PageSaveComplete
-     *
-     * @param \WikiPage $wikiPage
-     * @param UserIdentity $user
-     * @param string $summary
-     * @param int $flags
-     * @param RevisionRecord $revisionRecord
-     * @param mixed $editResult
      */
     public static function onPageSaveComplete(
         $wikiPage,
@@ -48,40 +42,11 @@ class AutoEmbeddingHooks
             return;
         }
 
-        $content = $revisionRecord->getContent(SlotRecord::MAIN);
-        if (!$content) {
-            return;
-        }
-
-        $text = ContentHandler::getContentText($content);
-        if (!is_string($text) || trim($text) === '') {
-            return;
-        }
-
-        $pageTitle = $title->getPrefixedText();
-        self::runEmbeddingOp(
-            'update',
-            $pageTitle,
-            fn (EmbeddingsClient $c) => $c->updatePage(
-                $user,
-                $pageTitle,
-                $text,
-                $title->getNamespace(),
-                $revisionRecord->getTimestamp()
-            )
-        );
+        self::enqueueUpdate($title);
     }
 
     /**
-     * Fired after a page is deleted.
-     *
-     * @param \MediaWiki\Page\ProperPageIdentity $page
-     * @param UserIdentity $user
-     * @param string $reason
-     * @param int $id
-     * @param mixed $content
-     * @param mixed $logEntry
-     * @param bool $archived
+     * @see https://www.mediawiki.org/wiki/Manual:Hooks/PageDeleteComplete
      */
     public static function onPageDeleteComplete(
         $page,
@@ -101,56 +66,84 @@ class AutoEmbeddingHooks
             return;
         }
 
-        $pageTitle = $title->getPrefixedText();
-        self::runEmbeddingOp(
-            'delete',
-            $pageTitle,
-            fn (EmbeddingsClient $c) => $c->deletePage($user, $pageTitle)
-        );
+        self::enqueueDelete($title);
     }
 
     /**
-     * Skip talk pages and user pages to avoid embedding huge volumes
-     * of irrelevant content.
+     * Embeddings are keyed on title, so a move would otherwise leave the old
+     * title's vectors orphaned — drop them and re-embed under the new title.
+     */
+    public static function onPageMoveComplete(
+        PageIdentity $old,
+        PageIdentity $new,
+        UserIdentity $user,
+        int $pageid,
+        int $redirid,
+        string $reason,
+        $revision
+    ): void {
+        if (!Config::isAutoEmbedEnabled()) {
+            return;
+        }
+
+        $oldTitle = Title::newFromPageIdentity($old);
+        $newTitle = Title::newFromPageIdentity($new);
+
+        if ($oldTitle && !self::shouldSkipTitle($oldTitle)) {
+            self::enqueueDelete($oldTitle);
+        }
+        if ($newTitle && !self::shouldSkipTitle($newTitle)) {
+            self::enqueueUpdate($newTitle);
+        }
+    }
+
+    /**
+     * Decide whether a title is excluded from embedding by config.
+     *
+     * Defaults match the historical behavior (skip talk pages and NS_USER) but
+     * are overridable via $wgMWAssistantEmbedSkipNamespaces and
+     * $wgMWAssistantEmbedTalkPages, e.g. for research wikis where user pages
+     * carry valuable content.
      */
     private static function shouldSkipTitle(Title $title): bool
     {
-        return $title->isTalkPage() || $title->getNamespace() === NS_USER;
+        if ($title->isTalkPage() && !Config::shouldEmbedTalkPages()) {
+            return true;
+        }
+        return in_array($title->getNamespace(), Config::getEmbedSkipNamespaces(), true);
     }
 
-    /**
-     * Execute an embedding operation and log success / failure consistently.
-     *
-     * @param string $op Operation label used in log messages ("update" / "delete").
-     * @param string $pageTitle Page being operated on (for log context).
-     * @param callable $callback Receives an EmbeddingsClient and returns its response array.
-     */
-    private static function runEmbeddingOp(string $op, string $pageTitle, callable $callback): void
+    private static function enqueueUpdate(Title $title): void
     {
-        $logger = self::logger();
-        $client = new EmbeddingsClient();
-
         try {
-            $res = $callback($client);
-            if (isset($res['error'])) {
-                $logger->error('AutoEmbed {op} failed for {page}: {error}', [
-                    'op' => $op,
-                    'page' => $pageTitle,
-                    'error' => $res['message'] ?? 'Unknown error',
-                ]);
-            } else {
-                $logger->debug('AutoEmbed {op} success for {page}', [
-                    'op' => $op,
-                    'page' => $pageTitle,
-                ]);
-            }
+            self::jobQueue()->push(new UpdateEmbeddingJob($title));
         } catch (\Throwable $e) {
-            $logger->error('AutoEmbed {op} exception for {page}: {error}', [
-                'op' => $op,
-                'page' => $pageTitle,
-                'error' => $e->getMessage(),
+            self::logger()->error('Failed to enqueue UpdateEmbeddingJob for {title}: {err}', [
+                'title' => $title->getPrefixedText(),
+                'err' => $e->getMessage(),
             ]);
         }
+    }
+
+    private static function enqueueDelete(Title $title): void
+    {
+        try {
+            // Capture the prefixed title in params: by the time the job runs,
+            // the on-wiki Title may resolve differently (e.g. after a move).
+            self::jobQueue()->push(new DeleteEmbeddingJob($title, [
+                'prefixed_title' => $title->getPrefixedText(),
+            ]));
+        } catch (\Throwable $e) {
+            self::logger()->error('Failed to enqueue DeleteEmbeddingJob for {title}: {err}', [
+                'title' => $title->getPrefixedText(),
+                'err' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private static function jobQueue()
+    {
+        return MediaWikiServices::getInstance()->getJobQueueGroup();
     }
 
     private static function logger(): LoggerInterface

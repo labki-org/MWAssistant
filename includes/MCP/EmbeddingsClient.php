@@ -30,20 +30,17 @@ class EmbeddingsClient
     /**
      * Create or update embeddings for a given page.
      *
-     * @param UserIdentity $user
-     * @param string $title
-     * @param string $content
-     * @param int $namespace
-     * @param string|null $timestamp Last-modified timestamp (optional)
-     *
-     * @return array
+     * $revisionId, when supplied, lets the dashboard compare embedding sync
+     * against page_latest exactly — avoiding the false-outdated reports
+     * caused by page_touched cache invalidations.
      */
     public function updatePage(
         UserIdentity $user,
         string $title,
         string $content,
         int $namespace = 0,
-        ?string $timestamp = null
+        ?string $timestamp = null,
+        ?int $revisionId = null
     ): array {
         $jwt = $this->createToken($user);
 
@@ -53,6 +50,12 @@ class EmbeddingsClient
             'namespace' => $namespace,
             'last_modified' => $timestamp,
         ];
+        // Treat 0 as "no rev id known" — page_latest can momentarily be 0 on
+        // pages that haven't been indexed by the revision table. The server
+        // requires rev_id >= 1, so sending 0 would fail validation.
+        if ($revisionId !== null && $revisionId > 0) {
+            $payload['rev_id'] = $revisionId;
+        }
 
         $resp = $this->client->postJson('/embeddings/page', $payload, $jwt);
         return $this->client->handleResponse($resp, 'embeddings update');
@@ -60,11 +63,6 @@ class EmbeddingsClient
 
     /**
      * Delete embeddings for a given page title.
-     *
-     * @param UserIdentity $user
-     * @param string $title
-     *
-     * @return array
      */
     public function deletePage(UserIdentity $user, string $title): array
     {
@@ -78,9 +76,6 @@ class EmbeddingsClient
 
     /**
      * Fetch basic embeddings index statistics.
-     *
-     * @param UserIdentity $user
-     * @return array
      */
     public function getStats(UserIdentity $user): array
     {

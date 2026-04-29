@@ -6,6 +6,25 @@
     max-width: 1200px;
 }
 
+/* Auto-refresh banner shown after a batch enqueue. Sits at the top of the
+   dashboard with a soft accent so it reads as a transient operational state
+   rather than a hard error. */
+.mwassistant-batch-banner {
+    margin: 0 0 1em;
+    padding: 12px 16px;
+    background: #eaf3ff;
+    border: 1px solid #a3c2f5;
+    border-left: 4px solid #36c;
+    border-radius: 4px;
+    line-height: 1.45;
+    color: #202122;
+}
+
+.mwassistant-batch-reload-link {
+    margin-left: 6px;
+    font-weight: 600;
+}
+
 /* Stats Cards Container */
 .mwassistant-stats-grid {
     display: grid;

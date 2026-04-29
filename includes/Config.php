@@ -123,6 +123,11 @@ class Config
     }
 
     /**
+     * System user name used by background embedding jobs to mint MCP JWTs.
+     */
+    public const SYSTEM_USER_NAME = 'MWAssistant Embedder';
+
+    /**
      * Whether automatic embedding updates are enabled.
      *
      * @return bool
@@ -130,6 +135,36 @@ class Config
     public static function isAutoEmbedEnabled(): bool
     {
         return (bool) self::cfg()->get('MWAssistantAutoEmbed');
+    }
+
+    /**
+     * Namespace IDs that should never be embedded.
+     *
+     * @return int[]
+     */
+    public static function getEmbedSkipNamespaces(): array
+    {
+        $raw = self::cfg()->get('MWAssistantEmbedSkipNamespaces');
+        if (!is_array($raw)) {
+            return [];
+        }
+        $out = [];
+        foreach ($raw as $ns) {
+            if (is_int($ns) || (is_string($ns) && ctype_digit($ns))) {
+                $out[] = (int) $ns;
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Whether talk-namespace pages should be embedded.
+     *
+     * @return bool
+     */
+    public static function shouldEmbedTalkPages(): bool
+    {
+        return (bool) self::cfg()->get('MWAssistantEmbedTalkPages');
     }
 
     /**
