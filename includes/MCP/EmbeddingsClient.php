@@ -30,17 +30,9 @@ class EmbeddingsClient
     /**
      * Create or update embeddings for a given page.
      *
-     * @param UserIdentity $user
-     * @param string $title
-     * @param string $content
-     * @param int $namespace
-     * @param string|null $timestamp Last-modified timestamp (optional)
-     * @param int|null $revisionId MediaWiki revision ID this content was taken from.
-     *                             When supplied, the dashboard can compare against
-     *                             page_latest exactly, avoiding the false-outdated
-     *                             reports caused by page_touched cache invalidations.
-     *
-     * @return array
+     * $revisionId, when supplied, lets the dashboard compare embedding sync
+     * against page_latest exactly — avoiding the false-outdated reports
+     * caused by page_touched cache invalidations.
      */
     public function updatePage(
         UserIdentity $user,
@@ -71,11 +63,6 @@ class EmbeddingsClient
 
     /**
      * Delete embeddings for a given page title.
-     *
-     * @param UserIdentity $user
-     * @param string $title
-     *
-     * @return array
      */
     public function deletePage(UserIdentity $user, string $title): array
     {
@@ -89,9 +76,6 @@ class EmbeddingsClient
 
     /**
      * Fetch basic embeddings index statistics.
-     *
-     * @param UserIdentity $user
-     * @return array
      */
     public function getStats(UserIdentity $user): array
     {

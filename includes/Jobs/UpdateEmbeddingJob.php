@@ -2,15 +2,10 @@
 
 namespace MWAssistant\Jobs;
 
-use Job;
 use MediaWiki\Content\ContentHandler;
-use MediaWiki\Logger\LoggerFactory;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Title\Title;
-use MediaWiki\User\User;
-use MWAssistant\Config;
 use MWAssistant\MCP\EmbeddingsClient;
-use Psr\Log\LoggerInterface;
 use Throwable;
 
 /**
@@ -20,10 +15,10 @@ use Throwable;
  * hook and the dashboard's batch-update loop. Doing this in a job means:
  *  - page saves no longer block on MCP latency,
  *  - bulk re-embeds aren't bounded by PHP's max_execution_time,
- *  - failures retry automatically with backoff (the JobQueue's normal behavior),
+ *  - failures retry automatically with backoff,
  *  - duplicate enqueues collapse via removeDuplicates.
  */
-class UpdateEmbeddingJob extends Job
+class UpdateEmbeddingJob extends EmbeddingJobBase
 {
     public const TYPE = 'mwassistantUpdateEmbedding';
 
@@ -49,8 +44,8 @@ class UpdateEmbeddingJob extends Job
             $content = $wikiPage->getContent();
             if (!$content) {
                 // Page exists but has no current revision (deleted between
-                // enqueue and run); nothing to embed. Drop the job rather
-                // than retry — the situation won't fix itself.
+                // enqueue and run); nothing to embed. Drop rather than retry —
+                // the situation won't fix itself.
                 return true;
             }
 
@@ -59,22 +54,20 @@ class UpdateEmbeddingJob extends Job
                 return true;
             }
 
-            $revId = $wikiPage->getLatest() ?: null;
-            $timestamp = $wikiPage->getTimestamp();
-
             $client = new EmbeddingsClient();
             $res = $client->updatePage(
-                $this->resolveUser(),
+                $this->resolveSystemUser(),
                 $title->getPrefixedText(),
                 $text,
                 $title->getNamespace(),
-                $timestamp,
-                $revId
+                $wikiPage->getTimestamp(),
+                $wikiPage->getLatest() ?: null
             );
 
             if (isset($res['error'])) {
-                return $this->handleClientError(
+                return $this->classifyClientError(
                     $logger,
+                    'UpdateEmbeddingJob',
                     $title->getPrefixedText(),
                     $res
                 );
@@ -92,57 +85,5 @@ class UpdateEmbeddingJob extends Job
             $this->setLastError($e->getMessage());
             return false;
         }
-    }
-
-    /**
-     * Jobs run outside any web request, so there's no live UserIdentity. We use
-     * a dedicated system user — its only role is to mint the JWT carrying the
-     * 'embeddings' scope; the MCP server doesn't track per-user state for these
-     * service-to-service calls.
-     */
-    private function resolveUser(): User
-    {
-        return User::newSystemUser('MWAssistant Embedder', ['steal' => true]);
-    }
-
-    /**
-     * Decide whether a server error from EmbeddingsClient should be retried.
-     *
-     * 4xx (other than 429) is the server telling us the request itself is
-     * wrong — retrying with the same payload will fail the same way. Drop the
-     * job loudly and let humans investigate. 5xx, 429, and transport errors
-     * are transient by nature: backoff and retry.
-     *
-     * @param array{status?:int|null,message?:string} $res
-     */
-    private function handleClientError(LoggerInterface $logger, string $title, array $res): bool
-    {
-        $status = (int) ($res['status'] ?? 0);
-        $msg = $res['message'] ?? 'embedding update failed';
-
-        $isPermanent = $status >= 400 && $status < 500 && $status !== 429;
-
-        if ($isPermanent) {
-            $logger->error(
-                'UpdateEmbeddingJob {title} -> permanent failure ({status}); dropping job: {err}',
-                ['title' => $title, 'status' => $status, 'err' => $msg]
-            );
-            // Returning true marks the job complete so MW removes it. The
-            // ERROR log is the dead-letter signal — searchable by the title
-            // and the status code.
-            return true;
-        }
-
-        $logger->warning(
-            'UpdateEmbeddingJob {title} -> transient failure ({status}); will retry: {err}',
-            ['title' => $title, 'status' => $status, 'err' => $msg]
-        );
-        $this->setLastError($msg);
-        return false;
-    }
-
-    private function logger(): LoggerInterface
-    {
-        return LoggerFactory::getInstance(Config::LOGGER_CHANNEL);
     }
 }

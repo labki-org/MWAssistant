@@ -29,11 +29,26 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
     /** @var MediaWikiServices */
     private $services;
 
+    /** Per-request cache for the MCP stats payload — kept so submit-then-render
+     *  doesn't issue two round-trips to MCP. */
+    private ?array $cachedStats = null;
+
     public function __construct()
     {
         parent::__construct('MWAssistantEmbeddings', 'mwassistant-use');
         $this->client = new EmbeddingsClient();
         $this->services = MediaWikiServices::getInstance();
+    }
+
+    /**
+     * Fetch (and memoize) MCP embedding stats for this request.
+     */
+    private function getStatsCached(): array
+    {
+        if ($this->cachedStats === null) {
+            $this->cachedStats = $this->client->getStats($this->getUser());
+        }
+        return $this->cachedStats;
     }
 
     /**
@@ -89,7 +104,7 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
         $user = $this->getUser();
 
         try {
-            $stats = $this->client->getStats($user);
+            $stats = $this->getStatsCached();
             $mcpTimestamps = $stats['page_timestamps'] ?? [];
             $mcpRevisions = $stats['page_revisions'] ?? [];
 
@@ -302,7 +317,7 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
         $user = $this->getUser();
 
         try {
-            $stats = $this->client->getStats($user);
+            $stats = $this->getStatsCached();
             $error = isset($stats['error']);
             $mcpTimestamps = $error ? [] : ($stats['page_timestamps'] ?? []);
             $mcpRevisions = $error ? [] : ($stats['page_revisions'] ?? []);

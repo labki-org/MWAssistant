@@ -87,8 +87,10 @@
 
     // Attach + sync visibility on input / focus. Event delegation is necessary
     // because Vector 2022 mounts the search box via Vue after DOM ready.
+    // 'input' fires on every keystroke (including paste / IME), so we don't
+    // also need 'keyup'.
     $(document).on(
-        'input.mwassistant focus.mwassistant keyup.mwassistant',
+        'input.mwassistant focus.mwassistant',
         INPUT_DELEGATE_SELECTOR,
         function () {
             var $input = $(this);

@@ -2,13 +2,8 @@
 
 namespace MWAssistant\Jobs;
 
-use Job;
-use MediaWiki\Logger\LoggerFactory;
 use MediaWiki\Title\Title;
-use MediaWiki\User\User;
-use MWAssistant\Config;
 use MWAssistant\MCP\EmbeddingsClient;
-use Psr\Log\LoggerInterface;
 use Throwable;
 
 /**
@@ -19,7 +14,7 @@ use Throwable;
  * point to a different page (move). We always send the title that was current
  * at the moment of enqueue.
  */
-class DeleteEmbeddingJob extends Job
+class DeleteEmbeddingJob extends EmbeddingJobBase
 {
     public const TYPE = 'mwassistantDeleteEmbedding';
 
@@ -42,30 +37,16 @@ class DeleteEmbeddingJob extends Job
 
         try {
             $client = new EmbeddingsClient();
-            $res = $client->deletePage(
-                User::newSystemUser('MWAssistant Embedder', ['steal' => true]),
-                $prefixedTitle
-            );
+            $res = $client->deletePage($this->resolveSystemUser(), $prefixedTitle);
 
             if (isset($res['error'])) {
-                $status = (int) ($res['status'] ?? 0);
-                $msg = $res['message'] ?? 'embedding delete failed';
-                $isPermanent = $status >= 400 && $status < 500 && $status !== 429;
-                if ($isPermanent) {
-                    $logger->error(
-                        'DeleteEmbeddingJob {title} -> permanent failure ({status}); dropping job: {err}',
-                        ['title' => $prefixedTitle, 'status' => $status, 'err' => $msg]
-                    );
-                    return true;
-                }
-                $logger->warning(
-                    'DeleteEmbeddingJob {title} -> transient failure ({status}); will retry: {err}',
-                    ['title' => $prefixedTitle, 'status' => $status, 'err' => $msg]
+                return $this->classifyClientError(
+                    $logger,
+                    'DeleteEmbeddingJob',
+                    $prefixedTitle,
+                    $res
                 );
-                $this->setLastError($msg);
-                return false;
             }
-
             return true;
         } catch (Throwable $e) {
             $logger->error('DeleteEmbeddingJob exception for {title}: {err}', [
@@ -75,10 +56,5 @@ class DeleteEmbeddingJob extends Job
             $this->setLastError($e->getMessage());
             return false;
         }
-    }
-
-    private function logger(): LoggerInterface
-    {
-        return LoggerFactory::getInstance(Config::LOGGER_CHANNEL);
     }
 }

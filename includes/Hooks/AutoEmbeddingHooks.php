@@ -23,16 +23,7 @@ use Psr\Log\LoggerInterface;
 class AutoEmbeddingHooks
 {
     /**
-     * Fired after a successful page save (edit, new page, or null edit).
-     *
      * @see https://www.mediawiki.org/wiki/Manual:Hooks/PageSaveComplete
-     *
-     * @param \WikiPage $wikiPage
-     * @param UserIdentity $user
-     * @param string $summary
-     * @param int $flags
-     * @param RevisionRecord $revisionRecord
-     * @param mixed $editResult
      */
     public static function onPageSaveComplete(
         $wikiPage,
@@ -55,15 +46,7 @@ class AutoEmbeddingHooks
     }
 
     /**
-     * Fired after a page is deleted.
-     *
-     * @param \MediaWiki\Page\ProperPageIdentity $page
-     * @param UserIdentity $user
-     * @param string $reason
-     * @param int $id
-     * @param mixed $content
-     * @param mixed $logEntry
-     * @param bool $archived
+     * @see https://www.mediawiki.org/wiki/Manual:Hooks/PageDeleteComplete
      */
     public static function onPageDeleteComplete(
         $page,
@@ -87,17 +70,8 @@ class AutoEmbeddingHooks
     }
 
     /**
-     * Fired after a page move. The old title's embeddings need to be dropped
-     * (they're keyed on title, so they'd otherwise become orphans referring
-     * to a non-existent page) and the new title needs to be re-embedded.
-     *
-     * @param PageIdentity $old
-     * @param PageIdentity $new
-     * @param UserIdentity $user
-     * @param int $pageid
-     * @param int $redirid
-     * @param string $reason
-     * @param \MediaWiki\Revision\RevisionRecord $revision
+     * Embeddings are keyed on title, so a move would otherwise leave the old
+     * title's vectors orphaned — drop them and re-embed under the new title.
      */
     public static function onPageMoveComplete(
         PageIdentity $old,

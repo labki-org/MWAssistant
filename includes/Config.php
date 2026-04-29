@@ -123,6 +123,11 @@ class Config
     }
 
     /**
+     * System user name used by background embedding jobs to mint MCP JWTs.
+     */
+    public const SYSTEM_USER_NAME = 'MWAssistant Embedder';
+
+    /**
      * Whether automatic embedding updates are enabled.
      *
      * @return bool
