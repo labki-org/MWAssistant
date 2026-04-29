@@ -1,28 +1,55 @@
-/* Container for the "Ask Assistant" shortcut button injected next to a
-   MediaWiki search input. The button is positioned below the input so it
-   never overlays the user's typed query, regardless of input width. */
+/* AI assistant shortcut icon anchored inside the search input.
+   Sits at the right edge, vertically centered, so the search-suggestion
+   dropdown that opens *below* the input never covers it. */
 .mwassistant-search-host {
     position: relative;
 }
 
-.mwassistant-search-btn {
+.mwassistant-search-icon-btn {
     position: absolute;
-    top: calc(100% + 4px);
-    right: 0;
-    z-index: 100;
-    font-size: 0.85em;
-    line-height: 1.2;
-    padding: 4px 10px;
-    background: #fff;
-    border: 1px solid #c8ccd1;
-    border-radius: 4px;
+    top: 50%;
+    /* Leave room for the skin's own search/clear icon, which usually sits
+       at right: 4-8px. Tuned to clear Vector 2022's magnifier without
+       crowding it; falls back gracefully on Monobook/Vector legacy. */
+    right: 28px;
+    transform: translateY(-50%);
+    z-index: 5;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
     color: #36c;
     cursor: pointer;
-    white-space: nowrap;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    opacity: 0.75;
+    transition: opacity 120ms ease, background-color 120ms ease;
 }
 
-.mwassistant-search-btn:hover {
-    background: #f8f9fa;
-    border-color: #36c;
+.mwassistant-search-icon-btn:hover,
+.mwassistant-search-icon-btn:focus {
+    opacity: 1;
+    background-color: rgba(54, 102, 204, 0.12);
+    outline: none;
+}
+
+.mwassistant-search-icon-btn:focus-visible {
+    box-shadow: 0 0 0 2px #36c;
+}
+
+.mwassistant-search-icon-btn svg {
+    display: block;
+    pointer-events: none;
+}
+
+/* On Special:Search the form is laid out wide; pin the icon to the right
+   of the actual input box rather than the form, so it stays adjacent to
+   the text the user is typing. */
+.mw-search-form-wrapper .mwassistant-search-host {
+    display: inline-block;
 }

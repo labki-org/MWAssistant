@@ -2,11 +2,22 @@
     "@metadata": {
         "authors": []
     },
-    "mwassistant-desc": "AI Assistant integration using MCP",
-    "mwassistant": "MWAssistant",
-    "mwassistant-chat-title": "AI Assistant",
-    "right-mwassistant-use": "Use MWAssistant AI features",
-    "action-mwassistant-use": "use MWAssistant AI features",
+    "mwassistant-desc": "MW Assistant — MediaWiki-aware AI assistant powered by MCP.",
+    "mwassistant": "MW Assistant",
+    "mwassistant-summary": "Chat with the wiki's MW Assistant. Ask questions about pages, categories, and structured data.",
+    "mwassistant-chat-title": "MW Assistant",
+    "mwassistantembeddings": "MW Assistant: Embeddings",
+    "mwassistantembeddings-summary": "Inspect vector embedding status by namespace and trigger updates for individual pages or whole namespaces.",
+    "mwassistantembeddings-pagetitle": "Vector embeddings status",
+    "mwassistantstream": "MW Assistant chat stream",
+    "right-mwassistant-use": "Use MW Assistant features",
+    "action-mwassistant-use": "use MW Assistant features",
     "apierror-mwassistant-invalid-jwt": "JWT verification failed. Token may be expired, have an invalid signature, or have insufficient scope.",
-    "specialpages-group-labki": "Labki"
+    "specialpages-group-labki": "Labki",
+    "mwassistant-search-icon-title": "Ask MW Assistant about this query",
+    "mwassistant-search-icon-label": "Ask MW Assistant",
+    "mwassistantembeddings-batch-queued": "Queued <b>$1</b> page {{PLURAL:$1|update|updates}} in namespace $2 for background processing. {{PLURAL:$3|$3 page is|$3 pages are}} already up to date and were skipped.",
+    "mwassistantembeddings-batch-nothing-to-do": "Nothing to do — {{PLURAL:$1|the page is|all $1 pages are}} already up to date.",
+    "mwassistantembeddings-single-queued": "Queued an embedding update for <b>$1</b>.",
+    "mwassistantembeddings-reload-hint": "Reload this page to see progress."
 }

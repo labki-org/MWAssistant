@@ -66,6 +66,10 @@
             "styles": [
                 "resources/mwassistant.global.css"
             ],
+            "messages": [
+                "mwassistant-search-icon-title",
+                "mwassistant-search-icon-label"
+            ],
             "dependencies": [
                 "mediawiki.util",
                 "jquery"
@@ -111,7 +115,12 @@
     "Hooks": {
         "BeforePageDisplay": "MWAssistant\\Hooks\\MWAssistantHooks::onBeforePageDisplay",
         "PageSaveComplete": "MWAssistant\\Hooks\\AutoEmbeddingHooks::onPageSaveComplete",
-        "PageDeleteComplete": "MWAssistant\\Hooks\\AutoEmbeddingHooks::onPageDeleteComplete"
+        "PageDeleteComplete": "MWAssistant\\Hooks\\AutoEmbeddingHooks::onPageDeleteComplete",
+        "PageMoveComplete": "MWAssistant\\Hooks\\AutoEmbeddingHooks::onPageMoveComplete"
+    },
+    "JobClasses": {
+        "mwassistantUpdateEmbedding": "MWAssistant\\Jobs\\UpdateEmbeddingJob",
+        "mwassistantDeleteEmbedding": "MWAssistant\\Jobs\\DeleteEmbeddingJob"
     },
     "AvailableRights": [
         "mwassistant-use"

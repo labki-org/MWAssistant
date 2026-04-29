@@ -2,23 +2,26 @@
 
 namespace MWAssistant\Hooks;
 
-use MediaWiki\Content\ContentHandler;
 use MediaWiki\Logger\LoggerFactory;
+use MediaWiki\MediaWikiServices;
+use MediaWiki\Page\PageIdentity;
 use MediaWiki\Revision\RevisionRecord;
-use MediaWiki\Revision\SlotRecord;
 use MediaWiki\Title\Title;
 use MediaWiki\User\UserIdentity;
 use MWAssistant\Config;
-use MWAssistant\MCP\EmbeddingsClient;
+use MWAssistant\Jobs\DeleteEmbeddingJob;
+use MWAssistant\Jobs\UpdateEmbeddingJob;
 use Psr\Log\LoggerInterface;
 
 /**
- * Automatically updates or deletes embeddings on the MCP server
- * whenever a page is saved or removed.
+ * Hooks that translate page lifecycle events into embedding-update/delete jobs.
+ *
+ * The hooks themselves are deliberately tiny: they only enqueue. All MCP I/O
+ * happens in the job runner so page saves don't block on network latency and
+ * MCP outages don't surface as save errors.
  */
 class AutoEmbeddingHooks
 {
-
     /**
      * Fired after a successful page save (edit, new page, or null edit).
      *
@@ -48,28 +51,7 @@ class AutoEmbeddingHooks
             return;
         }
 
-        $content = $revisionRecord->getContent(SlotRecord::MAIN);
-        if (!$content) {
-            return;
-        }
-
-        $text = ContentHandler::getContentText($content);
-        if (!is_string($text) || trim($text) === '') {
-            return;
-        }
-
-        $pageTitle = $title->getPrefixedText();
-        self::runEmbeddingOp(
-            'update',
-            $pageTitle,
-            fn (EmbeddingsClient $c) => $c->updatePage(
-                $user,
-                $pageTitle,
-                $text,
-                $title->getNamespace(),
-                $revisionRecord->getTimestamp()
-            )
-        );
+        self::enqueueUpdate($title);
     }
 
     /**
@@ -101,12 +83,44 @@ class AutoEmbeddingHooks
             return;
         }
 
-        $pageTitle = $title->getPrefixedText();
-        self::runEmbeddingOp(
-            'delete',
-            $pageTitle,
-            fn (EmbeddingsClient $c) => $c->deletePage($user, $pageTitle)
-        );
+        self::enqueueDelete($title);
+    }
+
+    /**
+     * Fired after a page move. The old title's embeddings need to be dropped
+     * (they're keyed on title, so they'd otherwise become orphans referring
+     * to a non-existent page) and the new title needs to be re-embedded.
+     *
+     * @param PageIdentity $old
+     * @param PageIdentity $new
+     * @param UserIdentity $user
+     * @param int $pageid
+     * @param int $redirid
+     * @param string $reason
+     * @param \MediaWiki\Revision\RevisionRecord $revision
+     */
+    public static function onPageMoveComplete(
+        PageIdentity $old,
+        PageIdentity $new,
+        UserIdentity $user,
+        int $pageid,
+        int $redirid,
+        string $reason,
+        $revision
+    ): void {
+        if (!Config::isAutoEmbedEnabled()) {
+            return;
+        }
+
+        $oldTitle = Title::newFromPageIdentity($old);
+        $newTitle = Title::newFromPageIdentity($new);
+
+        if ($oldTitle && !self::shouldSkipTitle($oldTitle)) {
+            self::enqueueDelete($oldTitle);
+        }
+        if ($newTitle && !self::shouldSkipTitle($newTitle)) {
+            self::enqueueUpdate($newTitle);
+        }
     }
 
     /**
@@ -118,39 +132,37 @@ class AutoEmbeddingHooks
         return $title->isTalkPage() || $title->getNamespace() === NS_USER;
     }
 
-    /**
-     * Execute an embedding operation and log success / failure consistently.
-     *
-     * @param string $op Operation label used in log messages ("update" / "delete").
-     * @param string $pageTitle Page being operated on (for log context).
-     * @param callable $callback Receives an EmbeddingsClient and returns its response array.
-     */
-    private static function runEmbeddingOp(string $op, string $pageTitle, callable $callback): void
+    private static function enqueueUpdate(Title $title): void
     {
-        $logger = self::logger();
-        $client = new EmbeddingsClient();
-
         try {
-            $res = $callback($client);
-            if (isset($res['error'])) {
-                $logger->error('AutoEmbed {op} failed for {page}: {error}', [
-                    'op' => $op,
-                    'page' => $pageTitle,
-                    'error' => $res['message'] ?? 'Unknown error',
-                ]);
-            } else {
-                $logger->debug('AutoEmbed {op} success for {page}', [
-                    'op' => $op,
-                    'page' => $pageTitle,
-                ]);
-            }
+            self::jobQueue()->push(new UpdateEmbeddingJob($title));
         } catch (\Throwable $e) {
-            $logger->error('AutoEmbed {op} exception for {page}: {error}', [
-                'op' => $op,
-                'page' => $pageTitle,
-                'error' => $e->getMessage(),
+            self::logger()->error('Failed to enqueue UpdateEmbeddingJob for {title}: {err}', [
+                'title' => $title->getPrefixedText(),
+                'err' => $e->getMessage(),
             ]);
         }
+    }
+
+    private static function enqueueDelete(Title $title): void
+    {
+        try {
+            // Capture the prefixed title in params: by the time the job runs,
+            // the on-wiki Title may resolve differently (e.g. after a move).
+            self::jobQueue()->push(new DeleteEmbeddingJob($title, [
+                'prefixed_title' => $title->getPrefixedText(),
+            ]));
+        } catch (\Throwable $e) {
+            self::logger()->error('Failed to enqueue DeleteEmbeddingJob for {title}: {err}', [
+                'title' => $title->getPrefixedText(),
+                'err' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    private static function jobQueue()
+    {
+        return MediaWikiServices::getInstance()->getJobQueueGroup();
     }
 
     private static function logger(): LoggerInterface

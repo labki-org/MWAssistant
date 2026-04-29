@@ -35,6 +35,10 @@ class EmbeddingsClient
      * @param string $content
      * @param int $namespace
      * @param string|null $timestamp Last-modified timestamp (optional)
+     * @param int|null $revisionId MediaWiki revision ID this content was taken from.
+     *                             When supplied, the dashboard can compare against
+     *                             page_latest exactly, avoiding the false-outdated
+     *                             reports caused by page_touched cache invalidations.
      *
      * @return array
      */
@@ -43,7 +47,8 @@ class EmbeddingsClient
         string $title,
         string $content,
         int $namespace = 0,
-        ?string $timestamp = null
+        ?string $timestamp = null,
+        ?int $revisionId = null
     ): array {
         $jwt = $this->createToken($user);
 
@@ -53,6 +58,12 @@ class EmbeddingsClient
             'namespace' => $namespace,
             'last_modified' => $timestamp,
         ];
+        // Treat 0 as "no rev id known" — page_latest can momentarily be 0 on
+        // pages that haven't been indexed by the revision table. The server
+        // requires rev_id >= 1, so sending 0 would fail validation.
+        if ($revisionId !== null && $revisionId > 0) {
+            $payload['rev_id'] = $revisionId;
+        }
 
         $resp = $this->client->postJson('/embeddings/page', $payload, $jwt);
         return $this->client->handleResponse($resp, 'embeddings update');

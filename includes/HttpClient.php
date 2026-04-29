@@ -127,8 +127,15 @@ class HttpClient
         // Transport-level execution (network/HTTP)
         $status = $req->execute();
 
-        // Network-level error (connection failed, DNS, timeout, etc.)
-        if (!$status instanceof StatusValue || !$status->isOK()) {
+        // MWHttpRequest reports any non-2xx as a non-OK StatusValue, which
+        // makes 4xx/5xx look like transport failures. Pull the HTTP code
+        // and body up front so we can distinguish "no response at all"
+        // (real transport failure) from "server replied with an error"
+        // (whose body usually carries the validation detail we need).
+        $httpCode = $req->getStatus();
+        $bodyRaw = $req->getContent();
+
+        if ($httpCode === 0) {
             $err = $status instanceof StatusValue
                 ? $status->getWikiText()
                 : 'Unknown HTTP transport failure';
@@ -144,9 +151,6 @@ class HttpClient
                 'body' => "Transport error: {$err}",
             ];
         }
-
-        $httpCode = $req->getStatus();
-        $bodyRaw = $req->getContent();
 
         // Normalize body to UTF-8 to avoid JSON decode crashes
         $bodyRaw = is_string($bodyRaw)
