@@ -296,12 +296,15 @@
 
             // Wiki links – page comes from already-escaped text so it is safe
             // to interpolate, but we still pass it through escapeHtml for the
-            // title attribute to be defensive about HTML entities.
+            // title attribute to be defensive about HTML entities. A leading
+            // colon (`[[:Category:X]]`) is a wikitext convention; it has no
+            // meaning in chat output, so strip it before resolving the URL.
             clean = clean.replace(
                 /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
                 (_, page, label) => {
-                    const url = mw.util.getUrl(page);
-                    return `<a href="${url}" title="${this.escapeHtml(page)}">${label || page}</a>`;
+                    const target = page.replace(/^:/, '');
+                    const url = mw.util.getUrl(target);
+                    return `<a href="${url}" title="${this.escapeHtml(target)}">${label || target}</a>`;
                 }
             );
 
@@ -361,6 +364,11 @@
                     return { headerTitle: 'Page Info', displayQuery: args.title || 'Unknown Page' };
                 case 'mw_search_pages':
                     return { headerTitle: 'Keyword Search', displayQuery: args.query || '' };
+                case 'mw_find_pages_by_title':
+                    return {
+                        headerTitle: 'Title Lookup',
+                        displayQuery: (args.prefix || '') + (args.namespace ? ` (ns=${args.namespace})` : ''),
+                    };
                 case 'mw_vector_search':
                     return { headerTitle: 'Vector Search', displayQuery: args.query || '' };
                 case 'mw_get_categories':
@@ -398,17 +406,18 @@
                     displayResult = `<pre>${this.escapeHtml(JSON.stringify(result, null, 2))}</pre>`;
                     resultPreview = 'JSON Result';
                 }
+            } else if (this.isPaginatedEnvelope(result)) {
+                ({ displayResult, resultPreview } =
+                    this.formatPaginatedEnvelope(toolName, result));
             } else if (Array.isArray(result)) {
                 if (result.length === 0) {
                     displayResult = '<em>No matches found.</em>';
                     resultPreview = 'No matches';
                 } else if (typeof result[0] === 'string') {
-                    displayResult = `<ul class="mwassistant-tool-list">${result.map(x => `<li>${this.escapeHtml(x)}</li>`).join('')}</ul>`;
+                    displayResult = this.renderStringList(result);
                     resultPreview = result.join(', ');
                 } else if (result[0] && result[0].title && typeof result[0].score === 'number') {
-                    displayResult = `<ul class="mwassistant-tool-list">${
-                        result.map(x => `<li><b>[[${this.escapeHtml(x.title)}]]</b> (Score: ${x.score.toFixed(2)})</li>`).join('')
-                    }</ul>`;
+                    displayResult = this.renderScoredList(result);
                     resultPreview = `${result.length} results found`;
                 } else {
                     displayResult = `<pre>${this.escapeHtml(JSON.stringify(result, null, 2))}</pre>`;
@@ -431,6 +440,81 @@
 
             if (resultPreview.length > 50) resultPreview = resultPreview.substring(0, 50) + '...';
             return { displayResult, resultPreview };
+        }
+
+        /**
+         * The MCP server wraps every listy tool's result in a
+         * {results|matches|members, count, limit, truncated, note}
+         * envelope so the LLM can detect when it hit the cap. Detect the
+         * shape so we can show the truncation hint to the user too.
+         */
+        isPaginatedEnvelope(result) {
+            return (
+                result &&
+                typeof result === 'object' &&
+                !Array.isArray(result) &&
+                typeof result.truncated === 'boolean' &&
+                typeof result.limit === 'number'
+            );
+        }
+
+        formatPaginatedEnvelope(toolName, result) {
+            const listKey = ['results', 'matches', 'members'].find(
+                (k) => Array.isArray(result[k])
+            );
+            const list = listKey ? result[listKey] : [];
+            const suggestions = Array.isArray(result.suggestions) ? result.suggestions : [];
+
+            let body;
+            if (list.length === 0) {
+                body = '<em>No matches found.</em>';
+            } else if (typeof list[0] === 'string') {
+                body = this.renderStringList(list);
+            } else if (list[0] && typeof list[0].score === 'number' && list[0].title) {
+                body = this.renderScoredList(list);
+            } else if (list[0] && list[0].title) {
+                body = this.renderTitleList(list);
+            } else {
+                body = `<pre>${this.escapeHtml(JSON.stringify(list, null, 2))}</pre>`;
+            }
+
+            const meta = result.truncated
+                ? `<div class="mwassistant-tool-truncated">Truncated: showing ${result.count} of ≤${result.limit} — more results likely exist.</div>`
+                : `<div class="mwassistant-tool-meta">${result.count} of ${result.limit}</div>`;
+
+            let suggestionsHtml = '';
+            if (suggestions.length) {
+                suggestionsHtml =
+                    '<div class="mwassistant-tool-suggestions"><b>Suggestions:</b>' +
+                    this.renderStringList(suggestions) +
+                    '</div>';
+            }
+
+            const displayResult = meta + body + suggestionsHtml;
+            const resultPreview = result.truncated
+                ? `${result.count}/${result.limit} (truncated)`
+                : `${result.count} result${result.count === 1 ? '' : 's'}`;
+            return { displayResult, resultPreview };
+        }
+
+        renderStringList(items) {
+            return `<ul class="mwassistant-tool-list">${
+                items.map((x) => `<li>${this.escapeHtml(x)}</li>`).join('')
+            }</ul>`;
+        }
+
+        renderScoredList(rows) {
+            return `<ul class="mwassistant-tool-list">${
+                rows.map((x) =>
+                    `<li><b>[[${this.escapeHtml(x.title)}]]</b> (Score: ${x.score.toFixed(2)})</li>`
+                ).join('')
+            }</ul>`;
+        }
+
+        renderTitleList(rows) {
+            return `<ul class="mwassistant-tool-list">${
+                rows.map((x) => `<li><b>[[${this.escapeHtml(x.title)}]]</b></li>`).join('')
+            }</ul>`;
         }
 
         /**
