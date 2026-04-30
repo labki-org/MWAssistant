@@ -364,6 +364,11 @@
                     return { headerTitle: 'Page Info', displayQuery: args.title || 'Unknown Page' };
                 case 'mw_search_pages':
                     return { headerTitle: 'Keyword Search', displayQuery: args.query || '' };
+                case 'mw_find_pages_by_title':
+                    return {
+                        headerTitle: 'Title Lookup',
+                        displayQuery: (args.prefix || '') + (args.namespace ? ` (ns=${args.namespace})` : ''),
+                    };
                 case 'mw_vector_search':
                     return { headerTitle: 'Vector Search', displayQuery: args.query || '' };
                 case 'mw_get_categories':
