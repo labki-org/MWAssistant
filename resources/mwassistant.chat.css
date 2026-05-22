@@ -319,6 +319,64 @@
     font-size: 0.9em;
 }
 
+/* Markdown block elements rendered inside assistant messages. */
+.mwassistant-msg p {
+    margin: 0 0 8px 0;
+}
+
+.mwassistant-msg p:last-child {
+    margin-bottom: 0;
+}
+
+.mwassistant-md-list {
+    margin: 4px 0 8px 0;
+    padding-left: 24px;
+}
+
+.mwassistant-md-list li {
+    margin: 2px 0;
+    line-height: 1.5;
+}
+
+.mwassistant-md-list li > p:first-child {
+    display: inline;
+}
+
+.mwassistant-msg h1.mwassistant-md-h1,
+.mwassistant-msg h2.mwassistant-md-h2,
+.mwassistant-msg h3.mwassistant-md-h3,
+.mwassistant-msg h4.mwassistant-md-h4,
+.mwassistant-msg h5.mwassistant-md-h5,
+.mwassistant-msg h6.mwassistant-md-h6 {
+    margin: 12px 0 6px 0;
+    font-weight: 600;
+    line-height: 1.3;
+    color: #1f1f1f;
+    border: none;
+    padding: 0;
+}
+
+.mwassistant-msg h1.mwassistant-md-h1 { font-size: 1.3em; }
+.mwassistant-msg h2.mwassistant-md-h2 { font-size: 1.2em; }
+.mwassistant-msg h3.mwassistant-md-h3 { font-size: 1.1em; }
+.mwassistant-msg h4.mwassistant-md-h4,
+.mwassistant-msg h5.mwassistant-md-h5,
+.mwassistant-msg h6.mwassistant-md-h6 { font-size: 1em; }
+
+.mwassistant-msg h1.mwassistant-md-h1:first-child,
+.mwassistant-msg h2.mwassistant-md-h2:first-child,
+.mwassistant-msg h3.mwassistant-md-h3:first-child {
+    margin-top: 0;
+}
+
+.mwassistant-md-blockquote {
+    margin: 6px 0;
+    padding: 4px 12px;
+    border-left: 3px solid #c8ccd1;
+    color: #5f6368;
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
 /* Tool Messages */
 .mwassistant-msg-tool {
     background: none;

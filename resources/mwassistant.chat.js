@@ -252,46 +252,177 @@
 
         /* ------------------------------------------------------------------
          * Markdown Parser (Safe)
+         *
+         * Two-pass: block-level structure (paragraphs, headings, lists,
+         * blockquotes, fenced code) is built from the raw line stream;
+         * inline structure (code, bold, italic, links, wikilinks) runs on
+         * each text segment after HTML-escaping. Doing block detection on
+         * raw text means we never have to un-escape anything to spot a
+         * `## heading` or a `1.` list marker, and HTML in user/LLM text is
+         * still escaped before being inserted into the DOM.
          * ------------------------------------------------------------------ */
 
         parseMarkdown(raw) {
             if (!raw) return "";
 
-            // Escape HTML – prevents XSS entirely.
-            let clean = this.escapeHtml(raw);
-
+            // Pull fenced code blocks out first so their contents never get
+            // mistaken for headings / lists / paragraphs. We store the raw
+            // code and escape it at render time.
             const codeBlocks = [];
-
-            // Extract fenced blocks
-            clean = clean.replace(/```([\s\S]*?)```/g, (match, code) => {
+            const stashed = raw.replace(/```([\s\S]*?)```/g, (_, code) => {
                 const index = codeBlocks.length;
-                codeBlocks.push(`
-                    <div class="mwassistant-code-wrapper">
-                        <button class="mwassistant-copy-btn" title="Copy code">Copy</button>
-                        <pre class="mwassistant-code-block"><code>${code.trim()}</code></pre>
-                    </div>
-                `);
-                return `___MWASSISTANT_CODE_BLOCK_${index}___`;
+                codeBlocks.push(code.replace(/^\n+|\n+$/g, ''));
+                return `\n CODE_BLOCK_${index} \n`;
             });
 
-            // Inline code (content already HTML-escaped above)
+            const lines = stashed.split('\n');
+            const out = [];
+            let i = 0;
+
+            const isCodePlaceholder = (s) => /^ CODE_BLOCK_(\d+) $/.test(s.trim());
+            const isHeading = (s) => /^#{1,6}\s+\S/.test(s);
+            const isOrdered = (s) => /^\s*\d+\.\s+\S/.test(s);
+            const isBullet = (s) => /^\s*[-*+]\s+\S/.test(s);
+            const isQuote = (s) => /^>\s?/.test(s);
+
+            while (i < lines.length) {
+                const line = lines[i];
+                const trimmed = line.trim();
+
+                // Blank line – just a separator between blocks.
+                if (!trimmed) { i++; continue; }
+
+                // Fenced code block.
+                const cm = trimmed.match(/^ CODE_BLOCK_(\d+) $/);
+                if (cm) {
+                    const code = this.escapeHtml(codeBlocks[parseInt(cm[1], 10)]);
+                    out.push(
+                        '<div class="mwassistant-code-wrapper">' +
+                            '<button class="mwassistant-copy-btn" title="Copy code">Copy</button>' +
+                            `<pre class="mwassistant-code-block"><code>${code}</code></pre>` +
+                        '</div>'
+                    );
+                    i++;
+                    continue;
+                }
+
+                // ATX heading.
+                const hm = trimmed.match(/^(#{1,6})\s+(.+?)\s*#*\s*$/);
+                if (hm) {
+                    const level = hm[1].length;
+                    out.push(`<h${level} class="mwassistant-md-h${level}">${this.renderInline(hm[2])}</h${level}>`);
+                    i++;
+                    continue;
+                }
+
+                // Ordered list — consume consecutive `N.` lines. Allow a
+                // single blank line between items (CommonMark "loose list").
+                if (isOrdered(line)) {
+                    const items = [];
+                    while (i < lines.length) {
+                        if (isOrdered(lines[i])) {
+                            const text = lines[i].replace(/^\s*\d+\.\s+/, '');
+                            items.push(`<li>${this.renderInline(text)}</li>`);
+                            i++;
+                        } else if (lines[i].trim() === '' && isOrdered(lines[i + 1] || '')) {
+                            i++;
+                        } else {
+                            break;
+                        }
+                    }
+                    out.push(`<ol class="mwassistant-md-list">${items.join('')}</ol>`);
+                    continue;
+                }
+
+                // Unordered list — same loose-list handling.
+                if (isBullet(line)) {
+                    const items = [];
+                    while (i < lines.length) {
+                        if (isBullet(lines[i])) {
+                            const text = lines[i].replace(/^\s*[-*+]\s+/, '');
+                            items.push(`<li>${this.renderInline(text)}</li>`);
+                            i++;
+                        } else if (lines[i].trim() === '' && isBullet(lines[i + 1] || '')) {
+                            i++;
+                        } else {
+                            break;
+                        }
+                    }
+                    out.push(`<ul class="mwassistant-md-list">${items.join('')}</ul>`);
+                    continue;
+                }
+
+                // Blockquote — accumulate consecutive `> ` lines.
+                if (isQuote(line)) {
+                    const buf = [];
+                    while (i < lines.length && isQuote(lines[i])) {
+                        buf.push(lines[i].replace(/^>\s?/, ''));
+                        i++;
+                    }
+                    out.push(`<blockquote class="mwassistant-md-blockquote">${this.renderInline(buf.join(' '))}</blockquote>`);
+                    continue;
+                }
+
+                // Paragraph: collect consecutive non-special lines. Single
+                // newlines inside a paragraph become a single space; blank
+                // lines start a new paragraph (CommonMark behavior).
+                const buf = [];
+                while (i < lines.length) {
+                    const l = lines[i];
+                    const t = l.trim();
+                    if (!t) break;
+                    if (isCodePlaceholder(t) || isHeading(l) || isOrdered(l) || isBullet(l) || isQuote(l)) break;
+                    buf.push(t);
+                    i++;
+                }
+                if (buf.length) {
+                    out.push(`<p>${this.renderInline(buf.join(' '))}</p>`);
+                }
+            }
+
+            return out.join('');
+        }
+
+        /**
+         * Run inline markdown transforms on a raw text segment. Order
+         * matters: escape HTML first so the patterns below operate on
+         * trusted text, then inline code (so its contents are not further
+         * mutated), then bold, italic, and the two link forms last.
+         */
+        renderInline(raw) {
+            let clean = this.escapeHtml(raw);
+
+            // Inline code – content is already escaped, safe to wrap.
             clean = clean.replace(/`([^`]+)`/g, (_, txt) => {
                 return `<code class="mwassistant-inline-code">${txt}</code>`;
             });
 
-            // Bold
-            clean = clean.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+            // Bold (** ... **) – run before italic so it wins the `*` tokens.
+            clean = clean.replace(/\*\*([^*]+?)\*\*/g, "<b>$1</b>");
+
+            // Italic (* ... * or _ ... _) – avoid eating `**` leftovers and
+            // intra-word underscores like `foo_bar_baz`.
+            clean = clean.replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g, "$1<i>$2</i>");
+            clean = clean.replace(/(^|[\s(])_([^_\s][^_]*?)_(?![A-Za-z0-9])/g, "$1<i>$2</i>");
 
             // Markdown links — only allow safe URL schemes to prevent
             // javascript:/data: injection through model output.
             clean = clean.replace(
-                /\[([^\]]+)\]\(([^)]+)\)/g,
+                /\[([^\]]+)\]\(([^)\s]+)\)/g,
                 (match, label, url) => {
                     if (!this.isSafeUrl(url)) {
                         return match;
                     }
                     return `<a href="${url}" target="_blank" rel="noopener">${label}</a>`;
                 }
+            );
+
+            // Bare URLs – auto-link http(s) URLs that aren't already in an
+            // anchor or markdown link. The LLM frequently emits plain URLs
+            // and they should be clickable too.
+            clean = clean.replace(
+                /(^|[\s(])(https?:\/\/[^\s<)]+[^\s<).,;:!?'"])/g,
+                (_, lead, url) => `${lead}<a href="${url}" target="_blank" rel="noopener">${url}</a>`
             );
 
             // Wiki links – page comes from already-escaped text so it is safe
@@ -307,11 +438,6 @@
                     return `<a href="${url}" title="${this.escapeHtml(target)}">${label || target}</a>`;
                 }
             );
-
-            // Restore code blocks
-            clean = clean.replace(/___MWASSISTANT_CODE_BLOCK_(\d+)___/g, (_, idx) => {
-                return codeBlocks[parseInt(idx, 10)];
-            });
 
             return clean;
         }
