@@ -68,6 +68,8 @@ class EmbeddingsClient
     {
         $jwt = $this->createToken($user);
 
+        // The server reads the title from the JSON body
+        // (EmbeddingDeletePageRequest), not the query string.
         $payload = ['title' => $title];
 
         $resp = $this->client->request('DELETE', '/embeddings/page', $payload, $jwt);
