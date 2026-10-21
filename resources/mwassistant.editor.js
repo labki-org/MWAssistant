@@ -23,6 +23,7 @@
         constructor() {
             this.sidebarInitialized = false;
             this.$sidebar = null;
+            this.$button = null;
             this.chatInstance = null;
             this.init();
         }
@@ -32,29 +33,58 @@
             if (action !== "edit" && action !== "submit") {
                 return; // Only attach in edit mode
             }
-            this.addButton();
             this.bindGlobalShortcuts();
+
+            // WikiEditor builds its toolbar asynchronously, so injecting at
+            // DOM-ready raced it (the button landed in the fallback strip,
+            // or nowhere). Wait for its toolbar-ready hook when WikiEditor
+            // is on the page; mw.hook remembers past fires, so this also
+            // works if the toolbar was already built.
+            const wikiEditorState = mw.loader.getState("ext.wikiEditor");
+            const wikiEditorPending = wikiEditorState !== null && wikiEditorState !== "registered";
+            if (wikiEditorPending) {
+                mw.hook("ext.WikiEditor.toolbar.ready").add(($textarea) => this.addButton($textarea));
+            }
+
+            // Fallback for the plain textarea (no WikiEditor) or if the hook
+            // never fires (WikiEditor failed / disabled by preference).
+            $(() => {
+                if (!wikiEditorPending) {
+                    this.addButton();
+                    return;
+                }
+                mw.loader.using("ext.wikiEditor").always(() => {
+                    setTimeout(() => this.addButton(), 3000);
+                });
+            });
         }
 
         /* ------------------------------------------------------------------
          * Toolbar / Button Injection
          * ------------------------------------------------------------------ */
 
-        findToolbar() {
-            // 1. Standard Wikitext toolbar
-            let $toolbar = $("#wpTextbox1").closest("form").find(".toolbar");
+        findToolbar($textarea) {
+            // 1. WikiEditor toolbar belonging to the textarea from the hook
+            let $toolbar = $textarea && $textarea.length
+                ? $textarea.closest(".wikiEditor-ui").find(".wikiEditor-ui-toolbar").first()
+                : $();
 
-            // 2. WikiEditor toolbar
+            // 2. Standard Wikitext toolbar
+            if (!$toolbar.length) {
+                $toolbar = $("#wpTextbox1").closest("form").find(".toolbar");
+            }
+
+            // 3. Any WikiEditor toolbar
             if (!$toolbar.length) {
                 $toolbar = $(".wikiEditor-ui-toolbar");
             }
 
-            // 3. OOUI toolbar (Vector 2022)
+            // 4. OOUI toolbar (Vector 2022)
             if (!$toolbar.length) {
                 $toolbar = $(".oo-ui-toolbar-bar");
             }
 
-            // 4. Fallback: create a small toolbar above the textarea
+            // 5. Fallback: create a small toolbar above the textarea
             if (!$toolbar.length && $("#wpTextbox1").length) {
                 $("#wpTextbox1").before('<div class="mwassistant-editor-tools"></div>');
                 $toolbar = $("#wpTextbox1").prev(".mwassistant-editor-tools");
@@ -63,15 +93,18 @@
             return $toolbar;
         }
 
-        addButton() {
-            const $toolbar = this.findToolbar();
+        addButton($textarea) {
+            if (this.$button) {
+                return; // Already injected (hook + fallback both fired).
+            }
+            const $toolbar = this.findToolbar($textarea);
             if (!$toolbar || !$toolbar.length) {
                 return;
             }
 
-            const $btn = $("<button>")
-                .attr("type", "button")
-                .addClass("mwassistant-editor-button mw-ui-button")
+            const $btn = this.$button = $("<button>")
+                .attr({ type: "button", "aria-expanded": "false", "aria-controls": "mwassistant-editor-sidebar" })
+                .addClass("mwassistant-editor-button")
                 .text(mw.msg("mwassistant-editor-button"))
                 .on("click", (e) => this.toggleSidebar(e));
 
@@ -108,13 +141,20 @@
         showSidebar() {
             if (!this.$sidebar) return;
             this.$sidebar.show();
+            if (this.$button) this.$button.attr("aria-expanded", "true");
             // Focus the chat input so the user can type immediately.
             this.$sidebar.find('#mwassistant-chat-input-text').trigger('focus');
         }
 
         hideSidebar() {
             if (!this.$sidebar) return;
+            const hadFocus = $.contains(this.$sidebar[0], document.activeElement);
             this.$sidebar.hide();
+            if (this.$button) {
+                this.$button.attr("aria-expanded", "false");
+                // Don't strand keyboard focus inside the hidden sidebar.
+                if (hadFocus) this.$button.trigger("focus");
+            }
         }
 
         bindGlobalShortcuts() {
@@ -136,7 +176,8 @@
          * ------------------------------------------------------------------ */
 
         initSidebar() {
-            this.$sidebar = $('<div id="mwassistant-editor-sidebar"></div>');
+            this.$sidebar = $('<div id="mwassistant-editor-sidebar" role="complementary"></div>')
+                .attr("aria-label", mw.msg("mwassistant-chat-title"));
 
             const fullPageLabel = mw.msg("mwassistant-editor-open-full-page");
             const closeLabel = mw.msg("mwassistant-editor-close");

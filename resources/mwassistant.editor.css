@@ -1,6 +1,29 @@
-/* Editor toolbar button */
+/* Editor toolbar button (plain styling; mediawiki.ui is deprecated). */
 .mwassistant-editor-button {
     margin: 0 0.5em;
+    padding: 4px 10px;
+    min-height: 28px;
+    font: inherit;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--color-base, #202122);
+    background-color: var(--background-color-interactive-subtle, #f8f9fa);
+    border: 1px solid var(--border-color-interactive, #72777d);
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.mwassistant-editor-button:hover {
+    background-color: var(--background-color-interactive-subtle--hover, #eaecf0);
+}
+
+.mwassistant-editor-button:active {
+    background-color: var(--background-color-interactive-subtle--active, #dadde3);
+}
+
+.mwassistant-editor-button:focus-visible {
+    outline: 2px solid var(--outline-color-progressive--focus, #36c);
+    outline-offset: 1px;
 }
 
 /* Inside the Vector 2022 / OOUI toolbar the button needs explicit
