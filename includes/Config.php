@@ -95,6 +95,9 @@ class Config
     /**
      * Whether MWAssistant is globally enabled.
      *
+     * When false: no UI modules are loaded, no embedding jobs are queued,
+     * and Special:MWAssistant behaves as a nonexistent page.
+     *
      * @return bool
      */
     public static function isEnabled(): bool

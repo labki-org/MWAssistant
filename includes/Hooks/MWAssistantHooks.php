@@ -2,31 +2,35 @@
 
 namespace MWAssistant\Hooks;
 
-use MediaWiki\Output\OutputPage;
+use MediaWiki\Output\Hook\BeforePageDisplayHook;
 use MediaWiki\Request\WebRequest;
-use Skin;
+use MWAssistant\Config;
 
 /**
  * Handles UI integration for MWAssistant.
  *
- * - Loads global search bar module for logged-in users
+ * - Loads global search bar module for users allowed to use the assistant
  * - Loads chat/editor integration only on edit pages
  */
-class MWAssistantHooks
+class MWAssistantHooks implements BeforePageDisplayHook
 {
 
     /**
      * Add ResourceLoader modules when rendering a page.
      *
-     * @param OutputPage $out
-     * @param Skin $skin
+     * @inheritDoc
      */
-    public static function onBeforePageDisplay(OutputPage $out, Skin $skin): void
+    public function onBeforePageDisplay($out, $skin): void
     {
+        if (!Config::isEnabled()) {
+            return;
+        }
 
         $user = $out->getUser();
-        if (!$user->isRegistered()) {
-            return; // Avoid providing UI to anonymous users
+        // The modules only talk to APIs gated on mwassistant-use; don't ship
+        // UI that would fail for everyone else (including anonymous users).
+        if (!$user->isRegistered() || !$out->getAuthority()->isAllowed('mwassistant-use')) {
+            return;
         }
 
         // Global assistant module (search bar integration, shared UI)
