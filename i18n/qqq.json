@@ -88,6 +88,7 @@
     "mwassistant-chat-sessions-label": "Accessible label of the list of saved conversations.",
     "right-mwassistant-manage-embeddings": "{{doc-right|mwassistant-manage-embeddings}}\nAllows queuing embedding updates on [[Special:MWAssistantEmbeddings]].",
     "action-mwassistant-manage-embeddings": "{{doc-action|mwassistant-manage-embeddings}}",
+    "apierror-mwassistant-disabled": "API error returned when $wgMWAssistantEnabled is false.",
     "apierror-mwassistant-badparams": "API error returned when an MWAssistant API request has invalid parameters. $1 = description of the problem (English, not localized).",
     "apierror-mwassistant-user-mismatch": "API error returned when the username/user_id parameters of an MWAssistant API request differ from the user named in the request's signed JWT.",
     "apierror-mwassistant-smw-unavailable": "API error returned by action=mwassistant-smw when the Semantic MediaWiki extension is not loaded.",

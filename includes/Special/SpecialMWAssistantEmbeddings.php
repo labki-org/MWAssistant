@@ -8,6 +8,7 @@ use MediaWiki\MediaWikiServices;
 use MediaWiki\SpecialPage\SpecialPage;
 use MediaWiki\Title\Title;
 use MediaWiki\Widget\TitleInputWidget;
+use MWAssistant\Config;
 use MWAssistant\Jobs\DeleteEmbeddingJob;
 use MWAssistant\Jobs\UpdateEmbeddingJob;
 use MWAssistant\MCP\EmbeddingsClient;
@@ -66,6 +67,16 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
      */
     public function execute($subPage)
     {
+        // Same as Special:MWAssistant: act as if the page doesn't exist when
+        // the extension is switched off.
+        if (!Config::isEnabled()) {
+            $this->setHeaders();
+            $out = $this->getOutput();
+            $out->setStatusCode(404);
+            $out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
+            return;
+        }
+
         $this->checkPermissions();
 
         $this->setHeaders();
@@ -660,5 +671,11 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
     protected function getGroupName(): string
     {
         return 'labki';
+    }
+
+    /** @inheritDoc */
+    public function isListed(): bool
+    {
+        return Config::isEnabled();
     }
 }

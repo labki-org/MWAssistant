@@ -45,6 +45,11 @@ class SpecialMWAssistantStream extends UnlistedSpecialPage
         $out = $this->getOutput();
         $out->disable();
 
+        if (!Config::isEnabled()) {
+            $this->writeErrorAndExit(404, 'disabled', 'MWAssistant is disabled on this wiki.');
+            return;
+        }
+
         if (!$user->isAllowed('mwassistant-use')) {
             $this->writeErrorAndExit(403, 'permission_denied', 'You do not have permission to use MWAssistant.');
             return;

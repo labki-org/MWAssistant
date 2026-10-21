@@ -88,6 +88,7 @@
     "mwassistant-chat-sessions-label": "Previous chats",
     "right-mwassistant-manage-embeddings": "Queue MW Assistant embedding updates",
     "action-mwassistant-manage-embeddings": "queue MW Assistant embedding updates",
+    "apierror-mwassistant-disabled": "MWAssistant is disabled on this wiki.",
     "apierror-mwassistant-badparams": "Invalid parameters: $1.",
     "apierror-mwassistant-user-mismatch": "The requested user does not match the user the token was issued for.",
     "apierror-mwassistant-smw-unavailable": "Semantic MediaWiki is not installed on this wiki.",

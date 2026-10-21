@@ -7,6 +7,7 @@ use MediaWiki\Api\ApiMain;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\User\UserIdentity;
 use MediaWiki\Request\WebRequest;
+use MWAssistant\Config;
 use MWAssistant\JWTVerifier;
 
 /**
@@ -53,6 +54,10 @@ abstract class ApiMWAssistantBase extends ApiBase
      */
     protected function checkAccess(array $requiredScopes): void
     {
+        if (!Config::isEnabled()) {
+            $this->dieWithError('apierror-mwassistant-disabled', 'disabled');
+        }
+
         $request = $this->getRequest();
         $authHeader = $request->getHeader('Authorization');
 
