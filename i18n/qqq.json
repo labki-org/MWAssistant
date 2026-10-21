@@ -13,6 +13,7 @@
     "right-mwassistant-use": "Permission label for the 'mwassistant-use' user right (shown in [[Special:ListGroupRights]]).",
     "action-mwassistant-use": "Action label used in log entries when a user invokes MWAssistant features.",
     "apierror-mwassistant-invalid-jwt": "API error returned when an MWAssistant request carries an invalid or expired JWT.",
+    "apierror-mwassistant-badparams": "API error returned when an MWAssistant API request has invalid parameters. $1 = description of the problem (English, not localized).",
     "specialpages-group-labki": "Heading for the Labki group on [[Special:SpecialPages]] (shared with sister extensions like SemanticSchemas).",
     "mwassistant-search-icon-title": "Tooltip shown when hovering over the MW Assistant shortcut icon next to the search input.",
     "mwassistant-search-icon-label": "Accessible label (aria-label) for the MW Assistant shortcut icon next to the search input.",

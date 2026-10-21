@@ -13,6 +13,7 @@
     "right-mwassistant-use": "Use MW Assistant features",
     "action-mwassistant-use": "use MW Assistant features",
     "apierror-mwassistant-invalid-jwt": "JWT verification failed. Token may be expired, have an invalid signature, or have insufficient scope.",
+    "apierror-mwassistant-badparams": "Invalid parameters: $1.",
     "specialpages-group-labki": "Labki",
     "mwassistant-search-icon-title": "Ask MW Assistant about this query",
     "mwassistant-search-icon-label": "Ask MW Assistant",

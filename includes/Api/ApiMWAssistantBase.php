@@ -140,7 +140,7 @@ abstract class ApiMWAssistantBase extends ApiBase
             // unintended access on wikis with mixed namespace permissions.
             if ($username || $userId) {
                 $this->dieWithError(
-                    ['apierror-badparams', 'Could not resolve the specified user'],
+                    ['apierror-mwassistant-badparams', 'Could not resolve the specified user'],
                     'user-not-found'
                 );
             }
@@ -183,7 +183,7 @@ abstract class ApiMWAssistantBase extends ApiBase
         // Permission is defined in extension.json as an explicit right: 'mwassistant-use'
         if (!$user || !$user->isAllowed('mwassistant-use')) {
             $this->dieWithError(
-                'apierror-permissiondenied',
+                ['apierror-permissiondenied', $this->msg('action-mwassistant-use')],
                 'permissiondenied'
             );
         }

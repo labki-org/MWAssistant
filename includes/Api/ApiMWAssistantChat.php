@@ -36,7 +36,7 @@ class ApiMWAssistantChat extends ApiMWAssistantBase
             $err = ChatRequestValidator::validateContext($context);
         }
         if ($err !== null) {
-            $this->dieWithError(['apierror-badparams', $err[1]], $err[0]);
+            $this->dieWithError(['apierror-mwassistant-badparams', $err[1]], $err[0]);
         }
 
         $user = $this->resolveUser();
