@@ -30,6 +30,8 @@ class NamespacePermissions
         $services = MediaWikiServices::getInstance();
         $permissionManager = $services->getPermissionManager();
         $namespaceInfo = $services->getNamespaceInfo();
+        // PermissionManager::userCan() needs a full User, not just an identity.
+        $user = $services->getUserFactory()->newFromUserIdentity($user);
 
         // Get all valid namespace IDs
         $allNamespaces = $namespaceInfo->getCanonicalNamespaces();

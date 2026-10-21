@@ -21,7 +21,7 @@ jobs:
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: "8.1"
+          php-version: "8.3"
           extensions: json, mbstring
           tools: composer
 
@@ -51,6 +51,11 @@ jobs:
         run: |
           docker compose pull || echo "Pull failed, will try to continue..."
           docker compose up -d
+          # The platform image bakes in MWAssistant from main, and its Composer
+          # autoloader maps MWAssistant\ there, so tests would exercise main
+          # instead of this checkout. Point the baked path at the mount.
+          docker compose exec -T -w /var/www/html wiki sh -c \
+            'rm -rf extensions/MWAssistant && ln -s /mw-user-extensions/MWAssistant extensions/MWAssistant'
 
       - name: Wait for wiki to be ready
         run: |
