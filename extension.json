@@ -123,8 +123,14 @@
         "mwassistantDeleteEmbedding": "MWAssistant\\Jobs\\DeleteEmbeddingJob"
     },
     "AvailableRights": [
-        "mwassistant-use"
+        "mwassistant-use",
+        "mwassistant-manage-embeddings"
     ],
+    "GroupPermissions": {
+        "sysop": {
+            "mwassistant-manage-embeddings": true
+        }
+    },
     "APIModules": {
         "mwassistant-chat": "MWAssistant\\Api\\ApiMWAssistantChat",
         "mwassistant-sessions": "MWAssistant\\Api\\ApiMWAssistantSessions",
