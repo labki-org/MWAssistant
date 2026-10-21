@@ -558,3 +558,23 @@
     color: #5f6368;
     font-style: italic;
 }
+/* SMW #ask results (rendered as text, never as server HTML) */
+.mwassistant-smw-text {
+    white-space: pre-wrap;
+    font-family: monospace;
+    font-size: 0.9em;
+}
+
+.mwassistant-smw-table {
+    border-collapse: collapse;
+    font-size: 0.9em;
+    margin: 4px 0;
+}
+
+.mwassistant-smw-table th,
+.mwassistant-smw-table td {
+    border: 1px solid #dadce0;
+    padding: 2px 6px;
+    text-align: left;
+    vertical-align: top;
+}

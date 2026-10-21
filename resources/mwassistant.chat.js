@@ -268,18 +268,20 @@
             // Pull fenced code blocks out first so their contents never get
             // mistaken for headings / lists / paragraphs. We store the raw
             // code and escape it at render time.
+            // NUL delimits the code-block placeholders below; strip any
+            // from the input so text cannot forge one.
             const codeBlocks = [];
-            const stashed = raw.replace(/```([\s\S]*?)```/g, (_, code) => {
+            const stashed = String(raw).replace(/\u0000/g, '').replace(/```([\s\S]*?)```/g, (_, code) => {
                 const index = codeBlocks.length;
                 codeBlocks.push(code.replace(/^\n+|\n+$/g, ''));
-                return `\n CODE_BLOCK_${index} \n`;
+                return `\n\u0000CODE_BLOCK_${index}\u0000\n`;
             });
 
             const lines = stashed.split('\n');
             const out = [];
             let i = 0;
 
-            const isCodePlaceholder = (s) => /^ CODE_BLOCK_(\d+) $/.test(s.trim());
+            const isCodePlaceholder = (s) => /^\u0000CODE_BLOCK_(\d+)\u0000$/.test(s.trim());
             const isHeading = (s) => /^#{1,6}\s+\S/.test(s);
             const isOrdered = (s) => /^\s*\d+\.\s+\S/.test(s);
             const isBullet = (s) => /^\s*[-*+]\s+\S/.test(s);
@@ -293,7 +295,7 @@
                 if (!trimmed) { i++; continue; }
 
                 // Fenced code block.
-                const cm = trimmed.match(/^ CODE_BLOCK_(\d+) $/);
+                const cm = trimmed.match(/^\u0000CODE_BLOCK_(\d+)\u0000$/);
                 if (cm) {
                     const code = this.escapeHtml(codeBlocks[parseInt(cm[1], 10)]);
                     out.push(
@@ -384,75 +386,127 @@
         }
 
         /**
-         * Run inline markdown transforms on a raw text segment. Order
-         * matters: escape HTML first so the patterns below operate on
-         * trusted text, then inline code (so its contents are not further
-         * mutated), then bold, italic, and the two link forms last.
+         * Run inline markdown transforms on a raw text segment.
+         *
+         * Constructs that produce markup with attributes (inline code,
+         * wikilinks, markdown links, bare URLs) are matched against the
+         * *raw* text and their HTML is built with every piece escaped via
+         * mw.html.escape (which, unlike jQuery's .text().html(), also
+         * escapes quotes). The finished HTML is stashed behind NUL-delimited
+         * placeholders so the remaining text can be escaped and given
+         * bold/italic treatment without touching it. Model output is
+         * untrusted (it can echo prompt-injected wiki content), so nothing
+         * raw ever reaches an attribute value.
          */
         renderInline(raw) {
-            let clean = this.escapeHtml(raw);
+            const stash = [];
+            const hold = (html) => {
+                stash.push(html);
+                return '\u0000' + (stash.length - 1) + '\u0000';
+            };
 
-            // Inline code – content is already escaped, safe to wrap.
-            clean = clean.replace(/`([^`]+)`/g, (_, txt) => {
-                return `<code class="mwassistant-inline-code">${txt}</code>`;
-            });
+            // NUL is our placeholder delimiter; it never belongs in chat text.
+            let text = String(raw == null ? '' : raw).replace(/\u0000/g, '');
 
-            // Bold (** ... **) – run before italic so it wins the `*` tokens.
-            clean = clean.replace(/\*\*([^*]+?)\*\*/g, "<b>$1</b>");
+            // Inline code – contents are shown verbatim.
+            text = text.replace(/`([^`]+)`/g, (_, code) =>
+                hold(`<code class="mwassistant-inline-code">${this.escapeHtml(code)}</code>`)
+            );
 
-            // Italic (* ... * or _ ... _) – avoid eating `**` leftovers and
-            // intra-word underscores like `foo_bar_baz`.
-            clean = clean.replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g, "$1<i>$2</i>");
-            clean = clean.replace(/(^|[\s(])_([^_\s][^_]*?)_(?![A-Za-z0-9])/g, "$1<i>$2</i>");
+            // Wiki links. A leading colon (`[[:Category:X]]`) is a wikitext
+            // convention with no meaning in chat output, so strip it before
+            // resolving the URL.
+            text = text.replace(
+                /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+                (_, page, label) => {
+                    const target = page.trim().replace(/^:/, '');
+                    let url;
+                    try {
+                        url = mw.util.getUrl(target);
+                    } catch (e) {
+                        return hold(this.escapeHtml(label || target));
+                    }
+                    return hold(
+                        `<a href="${this.escapeHtml(url)}" title="${this.escapeHtml(target)}">` +
+                        this.renderEmphasis(this.escapeHtml(label || target)) +
+                        '</a>'
+                    );
+                }
+            );
 
             // Markdown links — only allow safe URL schemes to prevent
             // javascript:/data: injection through model output.
-            clean = clean.replace(
+            text = text.replace(
                 /\[([^\]]+)\]\(([^)\s]+)\)/g,
                 (match, label, url) => {
                     if (!this.isSafeUrl(url)) {
                         return match;
                     }
-                    return `<a href="${url}" target="_blank" rel="noopener">${label}</a>`;
+                    return hold(
+                        `<a href="${this.escapeHtml(url)}" target="_blank" rel="noopener noreferrer">` +
+                        this.renderEmphasis(this.escapeHtml(label)) +
+                        '</a>'
+                    );
                 }
             );
 
-            // Bare URLs – auto-link http(s) URLs that aren't already in an
-            // anchor or markdown link. The LLM frequently emits plain URLs
-            // and they should be clickable too.
-            clean = clean.replace(
-                /(^|[\s(])(https?:\/\/[^\s<)]+[^\s<).,;:!?'"])/g,
-                (_, lead, url) => `${lead}<a href="${url}" target="_blank" rel="noopener">${url}</a>`
+            // Bare URLs – the LLM frequently emits plain http(s) URLs and
+            // they should be clickable too.
+            text = text.replace(
+                /(^|[\s(])(https?:\/\/[^\s<>"')\u0000]+[^\s<>"').,;:!?\u0000])/g,
+                (_, lead, url) => lead + hold(
+                    `<a href="${this.escapeHtml(url)}" target="_blank" rel="noopener noreferrer">` +
+                    this.escapeHtml(url) +
+                    '</a>'
+                )
             );
 
-            // Wiki links – page comes from already-escaped text so it is safe
-            // to interpolate, but we still pass it through escapeHtml for the
-            // title attribute to be defensive about HTML entities. A leading
-            // colon (`[[:Category:X]]`) is a wikitext convention; it has no
-            // meaning in chat output, so strip it before resolving the URL.
-            clean = clean.replace(
-                /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
-                (_, page, label) => {
-                    const target = page.replace(/^:/, '');
-                    const url = mw.util.getUrl(target);
-                    return `<a href="${url}" title="${this.escapeHtml(target)}">${label || target}</a>`;
-                }
-            );
+            // Everything left is plain text: escape it, apply emphasis, then
+            // swap the stashed markup back in.
+            const html = this.renderEmphasis(this.escapeHtml(text));
+            return html.replace(/\u0000(\d+)\u0000/g, (_, i) => stash[parseInt(i, 10)]);
+        }
+
+        /**
+         * Bold / italic on already-escaped text. The patterns only ever wrap
+         * existing (escaped) content in <b>/<i>, so they cannot introduce
+         * attributes or unescaped markup.
+         */
+        renderEmphasis(escaped) {
+            let clean = escaped;
+
+            // Bold (** ... **) – run before italic so it wins the `*` tokens.
+            clean = clean.replace(/\*\*([^*]+?)\*\*/g, '<b>$1</b>');
+
+            // Italic (* ... * or _ ... _) – avoid eating `**` leftovers and
+            // intra-word underscores like `foo_bar_baz`.
+            clean = clean.replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g, '$1<i>$2</i>');
+            clean = clean.replace(/(^|[\s(])_([^_\s][^_]*?)_(?![A-Za-z0-9])/g, '$1<i>$2</i>');
 
             return clean;
         }
 
+        /**
+         * Escape text for use in HTML element content *and* attribute values
+         * (mw.html.escape escapes both quote characters).
+         */
         escapeHtml(text) {
-            return $('<div>').text(text).html();
+            return mw.html.escape(String(text == null ? '' : text));
         }
 
         /**
          * Returns true only for HTTP(S), protocol-relative, root-relative,
          * or in-page anchor URLs. Rejects javascript:, data:, vbscript:, etc.
+         * Operates on the raw (unescaped) URL; control characters and
+         * backslashes are rejected outright because browsers strip or
+         * normalise them while parsing the scheme / authority.
          */
         isSafeUrl(url) {
-            const trimmed = String(url).trim();
-            return /^(https?:\/\/|\/\/|\/|#)/i.test(trimmed);
+            const value = String(url);
+            if (/[\u0000- \u007f\\]/.test(value)) {
+                return false;
+            }
+            return /^(https?:\/\/|\/\/[^/]|\/(?!\/)|#)/i.test(value);
         }
 
         /* ------------------------------------------------------------------
@@ -525,8 +579,9 @@
                 displayResult = `<span class="mwassistant-error">${this.escapeHtml(result.error)}</span>`;
                 resultPreview = `Error: ${result.error}`;
             } else if (toolName === 'mw_run_smw_ask') {
-                if (result && result['mwassistant-smw'] && result['mwassistant-smw'].result) {
-                    displayResult = result['mwassistant-smw'].result;
+                const smw = result && result['mwassistant-smw'];
+                if (smw && (Array.isArray(smw.rows) || smw.result)) {
+                    displayResult = this.renderSmwResult(smw);
                     resultPreview = 'SMW Result';
                 } else {
                     displayResult = `<pre>${this.escapeHtml(JSON.stringify(result, null, 2))}</pre>`;
@@ -605,8 +660,8 @@
             }
 
             const meta = result.truncated
-                ? `<div class="mwassistant-tool-truncated">Truncated: showing ${result.count} of ≤${result.limit} — more results likely exist.</div>`
-                : `<div class="mwassistant-tool-meta">${result.count} of ${result.limit}</div>`;
+                ? `<div class="mwassistant-tool-truncated">Truncated: showing ${this.escapeHtml(result.count)} of ≤${result.limit} — more results likely exist.</div>`
+                : `<div class="mwassistant-tool-meta">${this.escapeHtml(result.count)} of ${result.limit}</div>`;
 
             let suggestionsHtml = '';
             if (suggestions.length) {
@@ -621,6 +676,39 @@
                 ? `${result.count}/${result.limit} (truncated)`
                 : `${result.count} result${result.count === 1 ? '' : 's'}`;
             return { displayResult, resultPreview };
+        }
+
+        /**
+         * Render an SMW #ask result. Never inserts server-provided HTML:
+         * structured `rows` become an escaped table/list, and the legacy
+         * `result` string is shown as plain text.
+         */
+        renderSmwResult(smw) {
+            if (Array.isArray(smw.rows)) {
+                const rows = smw.rows;
+                if (rows.length === 0) {
+                    return '<em>No matches found.</em>';
+                }
+                const cell = (v) => this.escapeHtml(
+                    v !== null && typeof v === 'object' ? JSON.stringify(v) : v
+                );
+                if (rows.every((r) => r !== null && typeof r === 'object' && !Array.isArray(r))) {
+                    const cols = [];
+                    rows.forEach((r) => Object.keys(r).forEach((k) => {
+                        if (cols.indexOf(k) === -1) cols.push(k);
+                    }));
+                    const head = cols.map((c) => `<th>${this.escapeHtml(c)}</th>`).join('');
+                    const body = rows.map((r) =>
+                        `<tr>${cols.map((c) => `<td>${cell(r[c])}</td>`).join('')}</tr>`
+                    ).join('');
+                    return `<table class="mwassistant-smw-table"><thead><tr>${head}</tr></thead>` +
+                        `<tbody>${body}</tbody></table>`;
+                }
+                return `<ul class="mwassistant-tool-list">${
+                    rows.map((r) => `<li>${cell(r)}</li>`).join('')
+                }</ul>`;
+            }
+            return `<div class="mwassistant-smw-text">${this.escapeHtml(smw.result)}</div>`;
         }
 
         renderStringList(items) {
