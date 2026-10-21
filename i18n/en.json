@@ -82,5 +82,8 @@
     "mwassistant-editor-button": "Ask Assistant",
     "mwassistant-editor-open-full-page": "Open full assistant page",
     "mwassistant-editor-close": "Close",
-    "mwassistant-editor-chat-unavailable": "Error: the MW Assistant chat module is not loaded."
+    "mwassistant-editor-chat-unavailable": "Error: the MW Assistant chat module is not loaded.",
+    "mwassistant-chat-input-label": "Message",
+    "mwassistant-chat-log-label": "Conversation",
+    "mwassistant-chat-sessions-label": "Previous chats"
 }

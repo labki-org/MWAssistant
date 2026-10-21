@@ -92,11 +92,13 @@
                 <div class="mwassistant-layout">
                     <div class="mwassistant-sidebar">
                         <div class="mwassistant-sidebar-header">
-                            <button class="mwassistant-new-chat" id="mwassistant-new-chat">
-                                <span class="mwassistant-icon">+</span> ${this.escapeHtml(mw.msg('mwassistant-chat-new'))}
+                            <button type="button" class="mwassistant-new-chat" id="mwassistant-new-chat">
+                                <span class="mwassistant-icon" aria-hidden="true">+</span> ${this.escapeHtml(mw.msg('mwassistant-chat-new'))}
                             </button>
                         </div>
-                        <div class="mwassistant-session-list" id="mwassistant-session-list">
+                        <div class="mwassistant-session-list" id="mwassistant-session-list"
+                             role="navigation"
+                             aria-label="${this.escapeHtml(mw.msg('mwassistant-chat-sessions-label'))}">
                             <div class="mwassistant-loading">${this.escapeHtml(mw.msg('mwassistant-chat-loading-sessions'))}</div>
                         </div>
                     </div>
@@ -105,17 +107,22 @@
                             <h2 id="mwassistant-chat-title">${this.escapeHtml(mw.msg('mwassistant-chat-new'))}</h2>
                         </div>
 
-                        <div class="mwassistant-chat-log" id="mwassistant-chat-log">
+                        <div class="mwassistant-chat-log" id="mwassistant-chat-log"
+                             role="log" aria-live="polite" aria-relevant="additions"
+                             aria-label="${this.escapeHtml(mw.msg('mwassistant-chat-log-label'))}">
                             ${this.welcomeHtml()}
                         </div>
 
                         <div class="mwassistant-chat-input">
+                            <label for="mwassistant-chat-input-text" class="mwassistant-visually-hidden">${
+                                this.escapeHtml(mw.msg('mwassistant-chat-input-label'))
+                            }</label>
                             <textarea
                                 id="mwassistant-chat-input-text"
                                 rows="3"
                                 placeholder="${this.escapeHtml(mw.msg('mwassistant-chat-input-placeholder'))}"
                             ></textarea>
-                            <button id="mwassistant-chat-send">${this.escapeHtml(mw.msg('mwassistant-chat-send'))}</button>
+                            <button type="button" id="mwassistant-chat-send">${this.escapeHtml(mw.msg('mwassistant-chat-send'))}</button>
                         </div>
                     </div>
                 </div>
@@ -172,15 +179,16 @@
                 const safeId = this.escapeHtml(s.session_id || '');
                 const safeTitle = this.escapeHtml(s.title || mw.msg('mwassistant-chat-session-untitled'));
                 const safeDate = this.escapeHtml(formatDate(s.updated_at));
-                const activeClass = s.session_id === this.sessionId ? 'active' : '';
+                const isActive = s.session_id === this.sessionId;
                 return `
-                <div class="mwassistant-session-item ${activeClass}"
+                <div class="mwassistant-session-item ${isActive ? 'active' : ''}"
                      data-session-id="${safeId}">
-                    <div class="mwassistant-session-info">
+                    <button type="button" class="mwassistant-session-info"
+                        ${isActive ? 'aria-current="true"' : ''}>
                         <span class="mwassistant-session-title">${safeTitle}</span>
                         <span class="mwassistant-session-date">${safeDate}</span>
-                    </div>
-                    <button class="mwassistant-session-delete" data-session-id="${safeId}" title="${deleteLabel}" aria-label="${deleteLabel}">×</button>
+                    </button>
+                    <button type="button" class="mwassistant-session-delete" data-session-id="${safeId}" title="${deleteLabel}" aria-label="${deleteLabel}">×</button>
                 </div>`;
             }).join('');
 
@@ -882,9 +890,12 @@
             // Send button
             $root.on('click', '#mwassistant-chat-send', () => this.sendMessage());
 
-            // Enter key = send
-            $root.on('keypress', '#mwassistant-chat-input-text', (e) => {
-                if (e.which === 13 && !e.shiftKey) {
+            // Enter key = send (Shift+Enter inserts a newline). Ignore Enter
+            // while an IME composition is active — it confirms the
+            // composition rather than meaning "send".
+            $root.on('keydown', '#mwassistant-chat-input-text', (e) => {
+                const ev = e.originalEvent || e;
+                if (e.key === 'Enter' && !e.shiftKey && !ev.isComposing && e.keyCode !== 229) {
                     e.preventDefault();
                     this.sendMessage();
                 }
@@ -912,17 +923,17 @@
             // New chat button
             $root.on('click', '#mwassistant-new-chat', () => this.startNewChat());
 
-            // Session list click
-            $root.on('click', '.mwassistant-session-item', (e) => {
-                if ($(e.target).hasClass('mwassistant-session-delete')) return;
-                const sessionId = $(e.currentTarget).data('session-id');
+            // Session list: each entry is a real <button>, so keyboard
+            // activation (Enter/Space) comes for free.
+            $root.on('click', '.mwassistant-session-info', (e) => {
+                const sessionId = $(e.currentTarget).closest('.mwassistant-session-item').attr('data-session-id');
                 if (sessionId) this.loadSession(sessionId);
             });
 
             // Session delete button
             $root.on('click', '.mwassistant-session-delete', (e) => {
                 e.stopPropagation();
-                const sessionId = $(e.currentTarget).data('session-id');
+                const sessionId = $(e.currentTarget).attr('data-session-id');
                 if (sessionId) this.deleteSession(sessionId);
             });
         }

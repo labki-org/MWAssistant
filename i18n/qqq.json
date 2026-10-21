@@ -82,5 +82,8 @@
     "mwassistant-editor-button": "Label of the editor toolbar button that opens the assistant sidebar.",
     "mwassistant-editor-open-full-page": "Tooltip and accessible label of the link from the editor sidebar to [[Special:MWAssistant]].",
     "mwassistant-editor-close": "{{Identical|Close}}\nTooltip and accessible label of the button that closes the editor sidebar.",
-    "mwassistant-editor-chat-unavailable": "Shown in the editor sidebar if the chat module failed to load."
+    "mwassistant-editor-chat-unavailable": "Shown in the editor sidebar if the chat module failed to load.",
+    "mwassistant-chat-input-label": "{{Identical|Message}}\nAccessible label of the chat message input.",
+    "mwassistant-chat-log-label": "Accessible label of the chat log region.",
+    "mwassistant-chat-sessions-label": "Accessible label of the list of saved conversations."
 }

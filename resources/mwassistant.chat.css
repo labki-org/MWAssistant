@@ -86,11 +86,25 @@
 }
 
 .mwassistant-session-info {
+    /* Rendered as a <button>: reset the UA button styles. */
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
     overflow: hidden;
     flex: 1;
-    margin-right: 8px;
+    min-width: 0;
+    margin: 0 8px 0 0;
+    padding: 0;
+    background: none;
+    border: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.mwassistant-session-info .mwassistant-session-title {
+    max-width: 100%;
 }
 
 .mwassistant-session-title {
@@ -126,7 +140,8 @@
     transition: opacity 0.2s, color 0.2s;
 }
 
-.mwassistant-session-item:hover .mwassistant-session-delete {
+.mwassistant-session-item:hover .mwassistant-session-delete,
+.mwassistant-session-item:focus-within .mwassistant-session-delete {
     opacity: 1;
 }
 
@@ -207,7 +222,6 @@
     font-family: inherit;
     font-size: 14px;
     line-height: 1.5;
-    outline: none;
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 
@@ -287,7 +301,8 @@
     transition: opacity 0.2s;
 }
 
-.mwassistant-code-wrapper:hover .mwassistant-copy-btn {
+.mwassistant-code-wrapper:hover .mwassistant-copy-btn,
+.mwassistant-code-wrapper:focus-within .mwassistant-copy-btn {
     opacity: 1;
 }
 
@@ -401,7 +416,6 @@
     display: flex;
     align-items: center;
     list-style: none;
-    outline: none;
     user-select: none;
 }
 
@@ -577,4 +591,26 @@
     padding: 2px 6px;
     text-align: left;
     vertical-align: top;
+}
+
+/* Accessibility */
+.mwassistant-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Visible keyboard focus for every interactive control we own. */
+.mwassistant-layout button:focus-visible,
+.mwassistant-layout summary:focus-visible,
+.mwassistant-layout a:focus-visible,
+.mwassistant-chat-input textarea:focus-visible {
+    outline: 2px solid #36c;
+    outline-offset: 2px;
 }
