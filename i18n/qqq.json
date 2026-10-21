@@ -115,5 +115,6 @@
     "mwassistantembeddings-queue-failed": "Error shown when queuing a single-page update fails. $1 = error message (plain text).",
     "mwassistantembeddings-stats-failed": "Error shown when fetching embedding statistics from the MCP server throws. $1 = error message (plain text).",
     "mwassistantembeddings-stats-error": "Error shown when the MCP server returns an error for the statistics request. $1 = error message (plain text).",
-    "mwassistantembeddings-unknown-error": "Fallback for $1 of {{msg-mw|mwassistantembeddings-stats-error}} when the server gives no message.\n{{Identical|Unknown error}}"
+    "mwassistantembeddings-unknown-error": "Fallback for $1 of {{msg-mw|mwassistantembeddings-stats-error}} when the server gives no message.\n{{Identical|Unknown error}}",
+    "mwassistant-chat-smw-page": "Column header for the page (subject) column in a Semantic MediaWiki query result table shown in the chat."
 }

@@ -115,5 +115,6 @@
     "mwassistantembeddings-queue-failed": "Could not queue embedding job: $1",
     "mwassistantembeddings-stats-failed": "Could not fetch embedding statistics: $1",
     "mwassistantembeddings-stats-error": "Error fetching stats: $1",
-    "mwassistantembeddings-unknown-error": "Unknown error"
+    "mwassistantembeddings-unknown-error": "Unknown error",
+    "mwassistant-chat-smw-page": "Page"
 }

@@ -724,6 +724,23 @@
                 const cell = (v) => this.escapeHtml(
                     v !== null && typeof v === 'object' ? JSON.stringify(v) : v
                 );
+                // mwassistant-smw shape: { title, printouts: { label: [values] } },
+                // with column order given by smw.printouts.
+                if (rows.every((r) => r && typeof r.title === 'string' &&
+                    r.printouts !== null && typeof r.printouts === 'object')) {
+                    const labels = Array.isArray(smw.printouts) ? smw.printouts : [];
+                    const values = (v) => (Array.isArray(v) ? v : (v === undefined ? [] : [v]))
+                        .map(cell).join('<br>');
+                    const head = [mw.msg('mwassistant-chat-smw-page')].concat(labels)
+                        .map((c) => `<th>${this.escapeHtml(c)}</th>`).join('');
+                    const body = rows.map((r) =>
+                        `<tr><td><a href="${this.escapeHtml(mw.util.getUrl(r.title))}">${this.escapeHtml(r.title)}</a></td>${
+                            labels.map((l) => `<td>${values(r.printouts[l])}</td>`).join('')
+                        }</tr>`
+                    ).join('');
+                    return `<table class="mwassistant-smw-table"><thead><tr>${head}</tr></thead>` +
+                        `<tbody>${body}</tbody></table>`;
+                }
                 if (rows.every((r) => r !== null && typeof r === 'object' && !Array.isArray(r))) {
                     const cols = [];
                     rows.forEach((r) => Object.keys(r).forEach((k) => {
