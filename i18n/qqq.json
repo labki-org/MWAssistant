@@ -14,6 +14,7 @@
     "action-mwassistant-use": "Action label used in log entries when a user invokes MWAssistant features.",
     "apierror-mwassistant-invalid-jwt": "API error returned when an MWAssistant request carries an invalid or expired JWT.",
     "apierror-mwassistant-badparams": "API error returned when an MWAssistant API request has invalid parameters. $1 = description of the problem (English, not localized).",
+    "apierror-mwassistant-user-mismatch": "API error returned when the username/user_id parameters of an MWAssistant API request differ from the user named in the request's signed JWT.",
     "apierror-mwassistant-smw-unavailable": "API error returned by action=mwassistant-smw when the Semantic MediaWiki extension is not loaded.",
     "mwassistant-smw-col-page": "Header of the first (result page) column in the HTML table returned by action=mwassistant-smw.\n{{Identical|Page}}",
     "mwassistant-smw-noresults": "Text returned by action=mwassistant-smw in place of the result table when the query matched no readable pages.",

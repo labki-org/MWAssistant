@@ -29,6 +29,9 @@ abstract class ApiMWAssistantBase extends ApiBase
     /** @var bool Whether the request was authenticated using a JWT */
     protected bool $isJwtAuthenticated = false;
 
+    /** @var array Verified JWT claims (empty unless JWT-authenticated) */
+    protected array $jwtClaims = [];
+
     /**
      * Validates that the caller has sufficient authorization.
      *
@@ -73,6 +76,7 @@ abstract class ApiMWAssistantBase extends ApiBase
             }
 
             $this->isJwtAuthenticated = true;
+            $this->jwtClaims = $payload;
             return;
         }
 
@@ -104,6 +108,13 @@ abstract class ApiMWAssistantBase extends ApiBase
      * When JWT-authenticated, resolves from username/user_id params via UserFactory.
      * When session-authenticated, returns the current session user.
      *
+     * If the token carries a signed "user"/"user_id" claim, that identity
+     * is used and any username/user_id params must match it.
+     *
+     * NOTE: mw-mcp-server does not sign a user claim yet, so on the JWT path
+     * the acting user is currently taken from request params and is only as
+     * trustworthy as the MCP server's shared secret.
+     *
      * @param string|null $username
      * @param int|null $userId
      * @return UserIdentity
@@ -112,6 +123,17 @@ abstract class ApiMWAssistantBase extends ApiBase
     {
         if ($this->isJwtAuthenticated) {
             $userFactory = MediaWikiServices::getInstance()->getUserFactory();
+
+            $claimed = $this->resolveClaimedUser();
+            if ($claimed !== null) {
+                $nameMismatch = $username !== null && $username !== ''
+                    && $userFactory->newFromName($username)?->getName() !== $claimed->getName();
+                $idMismatch = $userId !== null && $userId !== 0 && $userId !== $claimed->getId();
+                if ($nameMismatch || $idMismatch) {
+                    $this->dieWithError('apierror-mwassistant-user-mismatch', 'user-mismatch', [], 403);
+                }
+                return $claimed;
+            }
 
             // Prefer username lookup (more reliable for loading from DB)
             if ($username) {
@@ -151,6 +173,46 @@ abstract class ApiMWAssistantBase extends ApiBase
 
         // Session auth -> use current user
         return $this->getUser();
+    }
+
+    /**
+     * Resolve the acting user from signed JWT claims ("user" / "user_id"),
+     * or null when the token carries no user claim.
+     *
+     * @return UserIdentity|null
+     */
+    private function resolveClaimedUser(): ?UserIdentity
+    {
+        $claimName = $this->jwtClaims['user'] ?? null;
+        $claimId = $this->jwtClaims['user_id'] ?? null;
+        if (($claimName === null || $claimName === '') && $claimId === null) {
+            return null;
+        }
+
+        $userFactory = MediaWikiServices::getInstance()->getUserFactory();
+        if ($claimId !== null && (int)$claimId === 0) {
+            return $userFactory->newAnonymous();
+        }
+
+        $user = null;
+        if (is_string($claimName) && $claimName !== '') {
+            $user = $userFactory->newFromName($claimName);
+        } elseif (is_int($claimId)) {
+            $user = $userFactory->newFromId($claimId);
+        }
+        if ($user) {
+            $user->load();
+        }
+
+        $valid = $user && $user->getId() > 0
+            && ($claimId === null || (int)$claimId === $user->getId());
+        if (!$valid) {
+            $this->dieWithError(
+                ['apierror-mwassistant-badparams', 'Could not resolve the user in the token'],
+                'user-not-found'
+            );
+        }
+        return $user;
     }
 
     /**
