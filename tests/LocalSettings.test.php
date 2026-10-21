@@ -34,7 +34,10 @@ $wgMWAssistantMCPBaseUrl = 'http://host.docker.internal:8000';
 $wgMWAssistantWikiApiUrl = 'http://host.docker.internal:8890/api.php';
 $wgMWAssistantEnabled = true;
 $wgMWAssistantWikiId = 'test-wiki';
-$wgMWAssistantAutoEmbed = true;
+// Off by default: auto-embedding queues jobs that call the MCP server at
+// host.docker.internal, which does not resolve on Linux (CI). Set to true
+// locally when an mw-mcp-server is running on the host.
+$wgMWAssistantAutoEmbed = false;
 
 // Fix autolinks to use correct port
 $wgServer = 'http://localhost:8890';

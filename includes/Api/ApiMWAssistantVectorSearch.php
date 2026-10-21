@@ -34,7 +34,7 @@ class ApiMWAssistantVectorSearch extends ApiMWAssistantBase
         // -------------------------------------------------------------
         if (!is_string($query) || trim($query) === '') {
             $this->dieWithError(
-                ['apierror-badparams', 'Search query cannot be empty.'],
+                ['apierror-mwassistant-badparams', 'Search query cannot be empty.'],
                 'query'
             );
         }

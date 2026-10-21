@@ -1,6 +1,29 @@
-/* Editor toolbar button */
+/* Editor toolbar button (plain styling; mediawiki.ui is deprecated). */
 .mwassistant-editor-button {
     margin: 0 0.5em;
+    padding: 4px 10px;
+    min-height: 28px;
+    font: inherit;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--color-base, #202122);
+    background-color: var(--background-color-interactive-subtle, #f8f9fa);
+    border: 1px solid var(--border-color-interactive, #72777d);
+    border-radius: 2px;
+    cursor: pointer;
+}
+
+.mwassistant-editor-button:hover {
+    background-color: var(--background-color-interactive-subtle--hover, #eaecf0);
+}
+
+.mwassistant-editor-button:active {
+    background-color: var(--background-color-interactive-subtle--active, #dadde3);
+}
+
+.mwassistant-editor-button:focus-visible {
+    outline: 2px solid var(--outline-color-progressive--focus, #36c);
+    outline-offset: 1px;
 }
 
 /* Inside the Vector 2022 / OOUI toolbar the button needs explicit
@@ -16,13 +39,20 @@
  * Sidebar shell
  * ============================================================ */
 #mwassistant-editor-sidebar {
+    /* Full-height overlay panel. Pinning to the viewport edges (rather than
+       guessing a skin header height) works the same in Vector 2022, Citizen
+       and Tweeki, whose headers differ in height and stickiness; the panel
+       has its own title bar and close button. */
     position: fixed;
-    top: 50px;          /* Below MW header (most skins). */
+    top: 0;
     right: 0;
     bottom: 0;
-    width: min(380px, 90vw);
-    background: #fff;
-    border-left: 1px solid #c8ccd1;
+    width: 380px;
+    max-width: 90vw;
+    box-sizing: border-box;
+    color: var(--color-base, #202122);
+    background-color: var(--background-color-base, #fff);
+    border-left: 1px solid var(--border-color-subtle, #c8ccd1);
     box-shadow: -2px 0 8px rgba(0, 0, 0, 0.08);
     z-index: 1000;
     display: flex;
@@ -31,8 +61,8 @@
 
 .mwassistant-editor-sidebar-header {
     padding: 8px 12px;
-    background: #f8f9fa;
-    border-bottom: 1px solid #e0e0e0;
+    background: var(--background-color-interactive-subtle, #f8f9fa);
+    border-bottom: 1px solid var(--border-color-subtle, #e0e0e0);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -44,7 +74,7 @@
 }
 
 .mwassistant-editor-sidebar-fullpage {
-    color: #54595d;
+    color: var(--color-subtle, #54595d);
     text-decoration: none;
     font-size: 1em;
     line-height: 1;
@@ -53,8 +83,8 @@
 }
 
 .mwassistant-editor-sidebar-fullpage:hover {
-    background: #eaecf0;
-    color: #36c;
+    background: var(--background-color-interactive-subtle--hover, #eaecf0);
+    color: var(--color-progressive, #36c);
     text-decoration: none;
 }
 
@@ -65,13 +95,13 @@
     cursor: pointer;
     line-height: 1;
     padding: 0 4px;
-    color: #54595d;
+    color: var(--color-subtle, #54595d);
     border-radius: 4px;
 }
 
 .mwassistant-editor-sidebar-close:hover {
-    background: #eaecf0;
-    color: #d33;
+    background: var(--background-color-interactive-subtle--hover, #eaecf0);
+    color: var(--color-destructive, #d33);
 }
 
 #mwassistant-editor-chat {
@@ -123,7 +153,7 @@
 
 #mwassistant-editor-chat .mwassistant-chat-input {
     padding: 10px;
-    border-top: 1px solid #e0e0e0;
+    border-top: 1px solid var(--border-color-subtle, #e0e0e0);
     gap: 8px;
 }
 

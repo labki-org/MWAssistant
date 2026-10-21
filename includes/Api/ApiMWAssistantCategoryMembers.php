@@ -4,6 +4,8 @@ namespace MWAssistant\Api;
 
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Title\Title;
+use Wikimedia\Rdbms\IReadableDatabase;
+use Wikimedia\Rdbms\IResultWrapper;
 
 /**
  * API module for listing category members with permission checks.
@@ -19,6 +21,9 @@ use MediaWiki\Title\Title;
  */
 class ApiMWAssistantCategoryMembers extends ApiMWAssistantBase
 {
+    /** @var int Upper bound on the number of members returned per call */
+    private const MAX_LIMIT = 500;
+
     /**
      * @inheritDoc
      */
@@ -38,33 +43,26 @@ class ApiMWAssistantCategoryMembers extends ApiMWAssistantBase
         }
 
         $title = Title::newFromText($category);
-        if ($title === null) {
+        if ($title === null || $title->getNamespace() !== NS_CATEGORY) {
             $this->dieWithError(
-                ['apierror-badparams', 'Invalid category title'],
+                ['apierror-mwassistant-badparams', 'Invalid category title'],
                 'bad-title'
             );
         }
 
-        $user = $this->resolveUser($username, $userId);
         $services = MediaWikiServices::getInstance();
         $permissionManager = $services->getPermissionManager();
-
-        // Use CategoryMemberQuery via the DB
-        $dbr = $services->getDBLoadBalancer()->getConnection(DB_REPLICA);
-        $res = $dbr->select(
-            'categorylinks',
-            ['cl_from'],
-            ['cl_to' => $title->getDBkey()],
-            __METHOD__,
-            ['LIMIT' => $limit, 'ORDER BY' => 'cl_sortkey']
+        // PermissionManager::quickUserCan() needs a full User.
+        $user = $services->getUserFactory()->newFromUserIdentity(
+            $this->resolveUser($username, $userId)
         );
+
+        $dbr = $services->getConnectionProvider()->getReplicaDatabase();
+        $res = $this->fetchMembers($dbr, $title->getDBkey(), $limit);
 
         $members = [];
         foreach ($res as $row) {
-            $memberTitle = Title::newFromID($row->cl_from);
-            if ($memberTitle === null) {
-                continue;
-            }
+            $memberTitle = Title::makeTitle((int)$row->page_namespace, $row->page_title);
 
             // Filter by read permission
             if (!$permissionManager->quickUserCan('read', $user, $memberTitle)) {
@@ -86,6 +84,37 @@ class ApiMWAssistantCategoryMembers extends ApiMWAssistantBase
     }
 
     /**
+     * Fetch member pages of a category, ordered by sort key.
+     *
+     * MW 1.45+ normalized categorylinks onto linktarget (cl_target_id) and
+     * MW 1.46 dropped cl_to. On 1.44 the migration stage still defaults to
+     * the old schema, so fall back to cl_to when the wiki isn't reading new.
+     */
+    private function fetchMembers(IReadableDatabase $dbr, string $dbKey, int $limit): IResultWrapper
+    {
+        $qb = $dbr->newSelectQueryBuilder()
+            ->select(['cl_from', 'page_namespace', 'page_title'])
+            ->from('categorylinks')
+            ->join('page', null, 'page_id = cl_from')
+            ->orderBy('cl_sortkey')
+            ->limit($limit)
+            ->caller(__METHOD__);
+
+        $config = $this->getConfig();
+        $readOld = $config->has('CategoryLinksSchemaMigrationStage')
+            && !($config->get('CategoryLinksSchemaMigrationStage') & SCHEMA_COMPAT_READ_NEW);
+
+        if ($readOld) {
+            $qb->where(['cl_to' => $dbKey]);
+        } else {
+            $qb->join('linktarget', null, 'lt_id = cl_target_id')
+                ->where(['lt_namespace' => NS_CATEGORY, 'lt_title' => $dbKey]);
+        }
+
+        return $qb->fetchResultSet();
+    }
+
+    /**
      * @inheritDoc
      */
     public function getAllowedParams(): array
@@ -99,6 +128,9 @@ class ApiMWAssistantCategoryMembers extends ApiMWAssistantBase
                 self::PARAM_TYPE => 'integer',
                 self::PARAM_REQUIRED => false,
                 self::PARAM_DFLT => 50,
+                self::PARAM_MIN => 1,
+                self::PARAM_MAX => self::MAX_LIMIT,
+                self::PARAM_MAX2 => self::MAX_LIMIT,
             ],
             'username' => [
                 self::PARAM_TYPE => 'string',

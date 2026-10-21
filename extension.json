@@ -7,7 +7,7 @@
     "descriptionmsg": "mwassistant-desc",
     "type": "other",
     "requires": {
-        "MediaWiki": ">=1.39.0"
+        "MediaWiki": ">= 1.44.0"
     },
     "AutoloadNamespaces": {
         "MWAssistant\\": "includes/"
@@ -31,16 +31,81 @@
             "styles": [
                 "resources/mwassistant.chat.css"
             ],
+            "messages": [
+                "mwassistant-chat-conversation-error",
+                "mwassistant-chat-copied",
+                "mwassistant-chat-copy",
+                "mwassistant-chat-copy-code",
+                "mwassistant-chat-copy-error",
+                "mwassistant-chat-error",
+                "mwassistant-chat-error-closed",
+                "mwassistant-chat-error-generic",
+                "mwassistant-chat-error-malformed",
+                "mwassistant-chat-error-too-large",
+                "mwassistant-chat-error-unreachable",
+                "mwassistant-chat-input-label",
+                "mwassistant-chat-input-placeholder",
+                "mwassistant-chat-loading-conversation",
+                "mwassistant-chat-loading-sessions",
+                "mwassistant-chat-log-label",
+                "mwassistant-chat-new",
+                "mwassistant-chat-send",
+                "mwassistant-chat-session-delete",
+                "mwassistant-chat-session-delete-confirm",
+                "mwassistant-chat-session-delete-error",
+                "mwassistant-chat-session-untitled",
+                "mwassistant-chat-sessions-empty",
+                "mwassistant-chat-sessions-error",
+                "mwassistant-chat-sessions-label",
+                "mwassistant-chat-thinking",
+                "mwassistant-chat-tool-all",
+                "mwassistant-chat-tool-category-members",
+                "mwassistant-chat-tool-chars-total",
+                "mwassistant-chat-tool-checking",
+                "mwassistant-chat-tool-count",
+                "mwassistant-chat-tool-elapsed",
+                "mwassistant-chat-tool-find-pages-by-title",
+                "mwassistant-chat-tool-get-categories",
+                "mwassistant-chat-tool-get-page",
+                "mwassistant-chat-tool-get-properties",
+                "mwassistant-chat-tool-list-all",
+                "mwassistant-chat-tool-list-pages",
+                "mwassistant-chat-tool-no-matches",
+                "mwassistant-chat-smw-page",
+                "mwassistant-chat-tool-no-matches-short",
+                "mwassistant-chat-tool-no-query",
+                "mwassistant-chat-tool-page-info",
+                "mwassistant-chat-tool-preview-count",
+                "mwassistant-chat-tool-preview-truncated",
+                "mwassistant-chat-tool-result",
+                "mwassistant-chat-tool-result-array",
+                "mwassistant-chat-tool-result-json",
+                "mwassistant-chat-tool-result-object",
+                "mwassistant-chat-tool-result-smw",
+                "mwassistant-chat-tool-results-found",
+                "mwassistant-chat-tool-running",
+                "mwassistant-chat-tool-score",
+                "mwassistant-chat-tool-search-pages",
+                "mwassistant-chat-tool-search-prefix",
+                "mwassistant-chat-tool-smw-ask",
+                "mwassistant-chat-tool-suggestions",
+                "mwassistant-chat-tool-truncated",
+                "mwassistant-chat-tool-unknown-page",
+                "mwassistant-chat-tool-vector-search",
+                "mwassistant-chat-tool-waiting",
+                "mwassistant-chat-welcome"
+            ],
             "dependencies": [
                 "mediawiki.api",
+                "mediawiki.jqueryMsg",
                 "mediawiki.util"
             ],
+            "localBasePath": "",
+            "remoteExtPath": "MWAssistant",
             "targets": [
                 "desktop",
                 "mobile"
-            ],
-            "localBasePath": "",
-            "remoteExtPath": "MWAssistant"
+            ]
         },
         "ext.mwassistant.editor": {
             "scripts": [
@@ -49,15 +114,23 @@
             "styles": [
                 "resources/mwassistant.editor.css"
             ],
+            "messages": [
+                "mwassistant-chat-title",
+                "mwassistant-editor-button",
+                "mwassistant-editor-chat-unavailable",
+                "mwassistant-editor-close",
+                "mwassistant-editor-open-full-page"
+            ],
             "dependencies": [
                 "mediawiki.api",
+                "mediawiki.util",
                 "ext.mwassistant.chat"
             ],
+            "localBasePath": "",
+            "remoteExtPath": "MWAssistant",
             "targets": [
                 "desktop"
-            ],
-            "localBasePath": "",
-            "remoteExtPath": "MWAssistant"
+            ]
         },
         "ext.mwassistant.global": {
             "scripts": [
@@ -74,12 +147,12 @@
                 "mediawiki.util",
                 "jquery"
             ],
+            "localBasePath": "",
+            "remoteExtPath": "MWAssistant",
             "targets": [
                 "desktop",
                 "mobile"
-            ],
-            "localBasePath": "",
-            "remoteExtPath": "MWAssistant"
+            ]
         },
         "ext.mwassistant.embeddings": {
             "scripts": [
@@ -93,12 +166,12 @@
                 "oojs-ui-core",
                 "oojs-ui-widgets"
             ],
+            "localBasePath": "",
+            "remoteExtPath": "MWAssistant",
             "targets": [
                 "desktop",
                 "mobile"
-            ],
-            "localBasePath": "",
-            "remoteExtPath": "MWAssistant"
+            ]
         }
     },
     "SpecialPages": {
@@ -112,19 +185,38 @@
             "class": "MWAssistant\\Special\\SpecialMWAssistantStream"
         }
     },
+    "HookHandlers": {
+        "main": {
+            "class": "MWAssistant\\Hooks\\MWAssistantHooks"
+        },
+        "autoembedding": {
+            "class": "MWAssistant\\Hooks\\AutoEmbeddingHooks"
+        }
+    },
     "Hooks": {
-        "BeforePageDisplay": "MWAssistant\\Hooks\\MWAssistantHooks::onBeforePageDisplay",
-        "PageSaveComplete": "MWAssistant\\Hooks\\AutoEmbeddingHooks::onPageSaveComplete",
-        "PageDeleteComplete": "MWAssistant\\Hooks\\AutoEmbeddingHooks::onPageDeleteComplete",
-        "PageMoveComplete": "MWAssistant\\Hooks\\AutoEmbeddingHooks::onPageMoveComplete"
+        "BeforePageDisplay": "main",
+        "PageSaveComplete": "autoembedding",
+        "PageDeleteComplete": "autoembedding",
+        "PageUndeleteComplete": "autoembedding",
+        "PageMoveComplete": "autoembedding",
+        "AfterImportPage": "autoembedding"
     },
     "JobClasses": {
         "mwassistantUpdateEmbedding": "MWAssistant\\Jobs\\UpdateEmbeddingJob",
         "mwassistantDeleteEmbedding": "MWAssistant\\Jobs\\DeleteEmbeddingJob"
     },
     "AvailableRights": [
-        "mwassistant-use"
+        "mwassistant-use",
+        "mwassistant-manage-embeddings"
     ],
+    "RateLimits": {
+        "mwassistant-chat": {
+            "user": [
+                30,
+                60
+            ]
+        }
+    },
     "APIModules": {
         "mwassistant-chat": "MWAssistant\\Api\\ApiMWAssistantChat",
         "mwassistant-sessions": "MWAssistant\\Api\\ApiMWAssistantSessions",
@@ -142,22 +234,28 @@
     "license-name": "GPL-3.0-or-later",
     "config": {
         "MWAssistantMCPBaseUrl": {
-            "value": "http://localhost:8000"
+            "value": "http://localhost:8000",
+            "description": "Base URL of the MCP server that MediaWiki calls for chat, search and embeddings."
         },
         "MWAssistantJWTMWToMCPSecret": {
-            "value": ""
+            "value": "",
+            "description": "Shared secret used to sign JWTs sent from MediaWiki to the MCP server. Required."
         },
         "MWAssistantJWTMCPToMWSecret": {
-            "value": ""
+            "value": "",
+            "description": "Shared secret used to verify JWTs sent from the MCP server to MediaWiki API modules. Required."
         },
         "MWAssistantEnabled": {
-            "value": true
+            "value": true,
+            "description": "Master switch. When false, no UI modules are loaded, no embedding jobs are queued, and Special:MWAssistant is unavailable."
         },
         "MWAssistantAutoEmbed": {
-            "value": false
+            "value": false,
+            "description": "Queue embedding updates/deletes automatically when pages are saved, deleted, undeleted, moved or imported."
         },
         "MWAssistantJWTTTL": {
-            "value": 30
+            "value": 30,
+            "description": "Lifetime in seconds of JWTs minted for MediaWiki-to-MCP requests."
         },
         "MWAssistantWikiId": {
             "value": "",
@@ -168,7 +266,9 @@
             "description": "Publicly accessible API URL for this wiki (e.g. https://wiki.example.com/api.php)"
         },
         "MWAssistantEmbedSkipNamespaces": {
-            "value": [2],
+            "value": [
+                2
+            ],
             "description": "Namespace IDs to skip when auto-embedding. Default skips NS_USER (2) since user pages are usually personal/scratch content. Set to [] to embed everything."
         },
         "MWAssistantEmbedTalkPages": {
@@ -176,5 +276,10 @@
             "description": "If false (default), talk pages are skipped from auto-embedding. Set true on wikis where talk-page content is part of the searchable knowledge base."
         }
     },
-    "manifest_version": 2
+    "manifest_version": 2,
+    "GroupPermissions": {
+        "sysop": {
+            "mwassistant-manage-embeddings": true
+        }
+    }
 }

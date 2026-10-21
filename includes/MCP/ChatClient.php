@@ -89,7 +89,7 @@ class ChatClient
         $roles = HttpClient::getUserRoles($user);
         $jwt = JWT::createMWToMCPToken($user, $roles, ['chat_completion']);
 
-        $resp = $this->client->getJson("/chat/sessions/{$sessionId}", [], $jwt);
+        $resp = $this->client->getJson('/chat/sessions/' . rawurlencode($sessionId), [], $jwt);
 
         return $this->client->handleResponse($resp, 'get session');
     }
@@ -106,7 +106,7 @@ class ChatClient
         $roles = HttpClient::getUserRoles($user);
         $jwt = JWT::createMWToMCPToken($user, $roles, ['chat_completion']);
 
-        $resp = $this->client->delete("/chat/sessions/{$sessionId}", $jwt);
+        $resp = $this->client->delete('/chat/sessions/' . rawurlencode($sessionId), $jwt);
 
         return $this->client->handleResponse($resp, 'delete session');
     }

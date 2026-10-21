@@ -29,7 +29,7 @@ class ApiMWAssistantPageInfo extends ApiMWAssistantBase
         $title = Title::newFromText($titleStr);
         if ($title === null) {
             $this->dieWithError(
-                ['apierror-badparams', 'Invalid page title'],
+                ['apierror-mwassistant-badparams', 'Invalid page title'],
                 'bad-title'
             );
         }

@@ -11,7 +11,8 @@ use RuntimeException;
  * This implementation:
  *   - Performs safe base64url decoding with full error detection
  *   - Performs strict JSON decoding with error handling
- *   - Validates all claims (iss, aud, iat, exp, scope)
+ *   - Validates all claims (iss, aud, iat, exp, scope, optional wiki_id)
+ *   - Caps token lifetime (exp - iat)
  *   - Applies standard JWT leeway (clock skew tolerance)
  *   - Uses constant-time signature comparison
  *   - Provides hardened logging for debugging
@@ -21,6 +22,12 @@ class JWTVerifier
 
     /** @var int Acceptable clock skew in seconds. */
     private int $leeway = 10;
+
+    /**
+     * Maximum accepted token lifetime (exp - iat) in seconds. mw-mcp-server
+     * mints MCP->MW tokens with JWT_TTL (default 30s, capped at 300s).
+     */
+    private const MAX_LIFETIME = 300;
 
     /**
      * Verify a JWT produced by mw-mcp-server.
@@ -118,6 +125,21 @@ class JWTVerifier
 
             if ($payload['exp'] < $now - $this->leeway) {
                 return $this->fail('Token expired', $payload);
+            }
+
+            // Reject long-lived tokens even if correctly signed.
+            if ($payload['exp'] - $payload['iat'] > self::MAX_LIFETIME) {
+                return $this->fail('Token lifetime exceeds maximum', $payload);
+            }
+
+            // ------------------------------------------------------------------
+            // Step 7b: Optional wiki binding. Not sent by mw-mcp-server yet;
+            // when present it must name this wiki.
+            // ------------------------------------------------------------------
+            if (array_key_exists('wiki_id', $payload)) {
+                if (!is_string($payload['wiki_id']) || $payload['wiki_id'] !== Config::getWikiId()) {
+                    return $this->fail('Invalid "wiki_id" claim', $payload);
+                }
             }
 
             // ------------------------------------------------------------------

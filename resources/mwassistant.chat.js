@@ -71,6 +71,13 @@
             // upgrade tool_start placeholders into final tool_result rows.
             this._activeToolNodes = new Map();
 
+            // In-flight request tracking (see sendMessage()).
+            this._inFlight = false;
+            this._requestSeq = 0;
+            this._activeRequestId = null;
+            this._abortController = null;
+            this._loadSeq = 0;
+
             this.renderUI();
             this.bindEvents();
             this.loadSessions();
@@ -85,32 +92,37 @@
                 <div class="mwassistant-layout">
                     <div class="mwassistant-sidebar">
                         <div class="mwassistant-sidebar-header">
-                            <button class="mwassistant-new-chat" id="mwassistant-new-chat">
-                                <span class="mwassistant-icon">+</span> New Chat
+                            <button type="button" class="mwassistant-new-chat" id="mwassistant-new-chat">
+                                <span class="mwassistant-icon" aria-hidden="true">+</span> ${this.escapeHtml(mw.msg('mwassistant-chat-new'))}
                             </button>
                         </div>
-                        <div class="mwassistant-session-list" id="mwassistant-session-list">
-                            <div class="mwassistant-loading">Loading sessions...</div>
+                        <div class="mwassistant-session-list" id="mwassistant-session-list"
+                             role="navigation"
+                             aria-label="${this.escapeHtml(mw.msg('mwassistant-chat-sessions-label'))}">
+                            <div class="mwassistant-loading">${this.escapeHtml(mw.msg('mwassistant-chat-loading-sessions'))}</div>
                         </div>
                     </div>
                     <div class="mwassistant-chat">
                         <div class="mwassistant-chat-header">
-                            <h2 id="mwassistant-chat-title">New Chat</h2>
+                            <h2 id="mwassistant-chat-title">${this.escapeHtml(mw.msg('mwassistant-chat-new'))}</h2>
                         </div>
 
-                        <div class="mwassistant-chat-log" id="mwassistant-chat-log">
-                            <div class="mwassistant-welcome">
-                                <p>Welcome to MWAssistant! Ask me anything about this wiki.</p>
-                            </div>
+                        <div class="mwassistant-chat-log" id="mwassistant-chat-log"
+                             role="log" aria-live="polite" aria-relevant="additions"
+                             aria-label="${this.escapeHtml(mw.msg('mwassistant-chat-log-label'))}">
+                            ${this.welcomeHtml()}
                         </div>
 
                         <div class="mwassistant-chat-input">
+                            <label for="mwassistant-chat-input-text" class="mwassistant-visually-hidden">${
+                                this.escapeHtml(mw.msg('mwassistant-chat-input-label'))
+                            }</label>
                             <textarea
                                 id="mwassistant-chat-input-text"
                                 rows="3"
-                                placeholder="What's on your mind?"
+                                placeholder="${this.escapeHtml(mw.msg('mwassistant-chat-input-placeholder'))}"
                             ></textarea>
-                            <button id="mwassistant-chat-send">Send</button>
+                            <button type="button" id="mwassistant-chat-send">${this.escapeHtml(mw.msg('mwassistant-chat-send'))}</button>
                         </div>
                     </div>
                 </div>
@@ -118,6 +130,12 @@
 
             this.$container.html(html);
             this.$log = this.$container.find('#mwassistant-chat-log');
+        }
+
+        welcomeHtml() {
+            return '<div class="mwassistant-welcome"><p>' +
+                this.escapeHtml(mw.msg('mwassistant-chat-welcome')) +
+                '</p></div>';
         }
 
         /* ------------------------------------------------------------------
@@ -140,11 +158,11 @@
                     this.sessions = Array.isArray(result) ? result : [];
                     this.renderSessionList();
                 } else {
-                    this.showSessionError(result?.message || 'Failed to load sessions');
+                    this.showSessionError((result && result.message) || mw.msg('mwassistant-chat-sessions-error'));
                 }
             } catch (err) {
                 console.error('Failed to load sessions:', err);
-                this.showSessionError('Failed to load sessions');
+                this.showSessionError(mw.msg('mwassistant-chat-sessions-error'));
             }
         }
 
@@ -152,23 +170,25 @@
             const $list = this.$container.find('#mwassistant-session-list');
             
             if (this.sessions.length === 0) {
-                $list.html('<div class="mwassistant-empty">No previous chats</div>');
+                $list.html(`<div class="mwassistant-empty">${this.escapeHtml(mw.msg('mwassistant-chat-sessions-empty'))}</div>`);
                 return;
             }
 
+            const deleteLabel = this.escapeHtml(mw.msg('mwassistant-chat-session-delete'));
             const items = this.sessions.map(s => {
                 const safeId = this.escapeHtml(s.session_id || '');
-                const safeTitle = this.escapeHtml(s.title || 'Untitled');
+                const safeTitle = this.escapeHtml(s.title || mw.msg('mwassistant-chat-session-untitled'));
                 const safeDate = this.escapeHtml(formatDate(s.updated_at));
-                const activeClass = s.session_id === this.sessionId ? 'active' : '';
+                const isActive = s.session_id === this.sessionId;
                 return `
-                <div class="mwassistant-session-item ${activeClass}"
+                <div class="mwassistant-session-item ${isActive ? 'active' : ''}"
                      data-session-id="${safeId}">
-                    <div class="mwassistant-session-info">
+                    <button type="button" class="mwassistant-session-info"
+                        ${isActive ? 'aria-current="true"' : ''}>
                         <span class="mwassistant-session-title">${safeTitle}</span>
                         <span class="mwassistant-session-date">${safeDate}</span>
-                    </div>
-                    <button class="mwassistant-session-delete" data-session-id="${safeId}" title="Delete">×</button>
+                    </button>
+                    <button type="button" class="mwassistant-session-delete" data-session-id="${safeId}" title="${deleteLabel}" aria-label="${deleteLabel}">×</button>
                 </div>`;
             }).join('');
 
@@ -181,9 +201,10 @@
         }
 
         async loadSession(sessionId) {
-            this._activeToolNodes.clear();
+            this.abortActiveRequest();
+            const loadId = ++this._loadSeq;
             const $log = this.$log;
-            $log.html('<div class="mwassistant-loading">Loading conversation...</div>');
+            $log.html(`<div class="mwassistant-loading">${this.escapeHtml(mw.msg('mwassistant-chat-loading-conversation'))}</div>`);
 
             try {
                 const data = await this.mwApi.post({
@@ -193,10 +214,13 @@
                     token: mw.user.tokens.get('csrfToken')
                 });
 
+                // A newer load / new chat superseded this one.
+                if (loadId !== this._loadSeq) return;
+
                 const result = data['mwassistant-sessions'];
                 if (result && !result.error && result.messages) {
                     this.sessionId = sessionId;
-                    this.$container.find('#mwassistant-chat-title').text(result.title || 'Chat');
+                    this.$container.find('#mwassistant-chat-title').text(result.title || mw.msg('mwassistant-chat-session-untitled'));
                     
                     $log.empty();
                     result.messages.forEach(msg => {
@@ -205,16 +229,17 @@
 
                     this.renderSessionList();  // Update active state
                 } else {
-                    $log.html('<div class="mwassistant-error">Failed to load conversation</div>');
+                    $log.html(`<div class="mwassistant-error">${this.escapeHtml(mw.msg('mwassistant-chat-conversation-error'))}</div>`);
                 }
             } catch (err) {
+                if (loadId !== this._loadSeq) return;
                 console.error('Failed to load session:', err);
-                $log.html('<div class="mwassistant-error">Failed to load conversation</div>');
+                $log.html(`<div class="mwassistant-error">${this.escapeHtml(mw.msg('mwassistant-chat-conversation-error'))}</div>`);
             }
         }
 
         async deleteSession(sessionId) {
-            if (!confirm('Delete this conversation?')) return;
+            if (!confirm(mw.msg('mwassistant-chat-session-delete-confirm'))) return;
 
             try {
                 await this.mwApi.post({
@@ -234,19 +259,16 @@
                 }
             } catch (err) {
                 console.error('Failed to delete session:', err);
-                alert('Failed to delete conversation');
+                alert(mw.msg('mwassistant-chat-session-delete-error'));
             }
         }
 
         startNewChat() {
-            this._activeToolNodes.clear();
+            this.abortActiveRequest();
+            this._loadSeq++;
             this.sessionId = null;
-            this.$container.find('#mwassistant-chat-title').text('New Chat');
-            this.$log.html(`
-                <div class="mwassistant-welcome">
-                    <p>Welcome to MWAssistant! Ask me anything about this wiki.</p>
-                </div>
-            `);
+            this.$container.find('#mwassistant-chat-title').text(mw.msg('mwassistant-chat-new'));
+            this.$log.html(this.welcomeHtml());
             this.renderSessionList();  // Clear active state
         }
 
@@ -268,18 +290,20 @@
             // Pull fenced code blocks out first so their contents never get
             // mistaken for headings / lists / paragraphs. We store the raw
             // code and escape it at render time.
+            // NUL delimits the code-block placeholders below; strip any
+            // from the input so text cannot forge one.
             const codeBlocks = [];
-            const stashed = raw.replace(/```([\s\S]*?)```/g, (_, code) => {
+            const stashed = String(raw).replace(/\u0000/g, '').replace(/```([\s\S]*?)```/g, (_, code) => {
                 const index = codeBlocks.length;
                 codeBlocks.push(code.replace(/^\n+|\n+$/g, ''));
-                return `\n CODE_BLOCK_${index} \n`;
+                return `\n\u0000CODE_BLOCK_${index}\u0000\n`;
             });
 
             const lines = stashed.split('\n');
             const out = [];
             let i = 0;
 
-            const isCodePlaceholder = (s) => /^ CODE_BLOCK_(\d+) $/.test(s.trim());
+            const isCodePlaceholder = (s) => /^\u0000CODE_BLOCK_(\d+)\u0000$/.test(s.trim());
             const isHeading = (s) => /^#{1,6}\s+\S/.test(s);
             const isOrdered = (s) => /^\s*\d+\.\s+\S/.test(s);
             const isBullet = (s) => /^\s*[-*+]\s+\S/.test(s);
@@ -293,12 +317,12 @@
                 if (!trimmed) { i++; continue; }
 
                 // Fenced code block.
-                const cm = trimmed.match(/^ CODE_BLOCK_(\d+) $/);
+                const cm = trimmed.match(/^\u0000CODE_BLOCK_(\d+)\u0000$/);
                 if (cm) {
                     const code = this.escapeHtml(codeBlocks[parseInt(cm[1], 10)]);
                     out.push(
                         '<div class="mwassistant-code-wrapper">' +
-                            '<button class="mwassistant-copy-btn" title="Copy code">Copy</button>' +
+                            `<button type="button" class="mwassistant-copy-btn" title="${this.escapeHtml(mw.msg('mwassistant-chat-copy-code'))}">${this.escapeHtml(mw.msg('mwassistant-chat-copy'))}</button>` +
                             `<pre class="mwassistant-code-block"><code>${code}</code></pre>` +
                         '</div>'
                     );
@@ -384,75 +408,127 @@
         }
 
         /**
-         * Run inline markdown transforms on a raw text segment. Order
-         * matters: escape HTML first so the patterns below operate on
-         * trusted text, then inline code (so its contents are not further
-         * mutated), then bold, italic, and the two link forms last.
+         * Run inline markdown transforms on a raw text segment.
+         *
+         * Constructs that produce markup with attributes (inline code,
+         * wikilinks, markdown links, bare URLs) are matched against the
+         * *raw* text and their HTML is built with every piece escaped via
+         * mw.html.escape (which, unlike jQuery's .text().html(), also
+         * escapes quotes). The finished HTML is stashed behind NUL-delimited
+         * placeholders so the remaining text can be escaped and given
+         * bold/italic treatment without touching it. Model output is
+         * untrusted (it can echo prompt-injected wiki content), so nothing
+         * raw ever reaches an attribute value.
          */
         renderInline(raw) {
-            let clean = this.escapeHtml(raw);
+            const stash = [];
+            const hold = (html) => {
+                stash.push(html);
+                return '\u0000' + (stash.length - 1) + '\u0000';
+            };
 
-            // Inline code – content is already escaped, safe to wrap.
-            clean = clean.replace(/`([^`]+)`/g, (_, txt) => {
-                return `<code class="mwassistant-inline-code">${txt}</code>`;
-            });
+            // NUL is our placeholder delimiter; it never belongs in chat text.
+            let text = String(raw == null ? '' : raw).replace(/\u0000/g, '');
 
-            // Bold (** ... **) – run before italic so it wins the `*` tokens.
-            clean = clean.replace(/\*\*([^*]+?)\*\*/g, "<b>$1</b>");
+            // Inline code – contents are shown verbatim.
+            text = text.replace(/`([^`]+)`/g, (_, code) =>
+                hold(`<code class="mwassistant-inline-code">${this.escapeHtml(code)}</code>`)
+            );
 
-            // Italic (* ... * or _ ... _) – avoid eating `**` leftovers and
-            // intra-word underscores like `foo_bar_baz`.
-            clean = clean.replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g, "$1<i>$2</i>");
-            clean = clean.replace(/(^|[\s(])_([^_\s][^_]*?)_(?![A-Za-z0-9])/g, "$1<i>$2</i>");
+            // Wiki links. A leading colon (`[[:Category:X]]`) is a wikitext
+            // convention with no meaning in chat output, so strip it before
+            // resolving the URL.
+            text = text.replace(
+                /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+                (_, page, label) => {
+                    const target = page.trim().replace(/^:/, '');
+                    let url;
+                    try {
+                        url = mw.util.getUrl(target);
+                    } catch (e) {
+                        return hold(this.escapeHtml(label || target));
+                    }
+                    return hold(
+                        `<a href="${this.escapeHtml(url)}" title="${this.escapeHtml(target)}">` +
+                        this.renderEmphasis(this.escapeHtml(label || target)) +
+                        '</a>'
+                    );
+                }
+            );
 
             // Markdown links — only allow safe URL schemes to prevent
             // javascript:/data: injection through model output.
-            clean = clean.replace(
+            text = text.replace(
                 /\[([^\]]+)\]\(([^)\s]+)\)/g,
                 (match, label, url) => {
                     if (!this.isSafeUrl(url)) {
                         return match;
                     }
-                    return `<a href="${url}" target="_blank" rel="noopener">${label}</a>`;
+                    return hold(
+                        `<a href="${this.escapeHtml(url)}" target="_blank" rel="noopener noreferrer">` +
+                        this.renderEmphasis(this.escapeHtml(label)) +
+                        '</a>'
+                    );
                 }
             );
 
-            // Bare URLs – auto-link http(s) URLs that aren't already in an
-            // anchor or markdown link. The LLM frequently emits plain URLs
-            // and they should be clickable too.
-            clean = clean.replace(
-                /(^|[\s(])(https?:\/\/[^\s<)]+[^\s<).,;:!?'"])/g,
-                (_, lead, url) => `${lead}<a href="${url}" target="_blank" rel="noopener">${url}</a>`
+            // Bare URLs – the LLM frequently emits plain http(s) URLs and
+            // they should be clickable too.
+            text = text.replace(
+                /(^|[\s(])(https?:\/\/[^\s<>"')\u0000]+[^\s<>"').,;:!?\u0000])/g,
+                (_, lead, url) => lead + hold(
+                    `<a href="${this.escapeHtml(url)}" target="_blank" rel="noopener noreferrer">` +
+                    this.escapeHtml(url) +
+                    '</a>'
+                )
             );
 
-            // Wiki links – page comes from already-escaped text so it is safe
-            // to interpolate, but we still pass it through escapeHtml for the
-            // title attribute to be defensive about HTML entities. A leading
-            // colon (`[[:Category:X]]`) is a wikitext convention; it has no
-            // meaning in chat output, so strip it before resolving the URL.
-            clean = clean.replace(
-                /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
-                (_, page, label) => {
-                    const target = page.replace(/^:/, '');
-                    const url = mw.util.getUrl(target);
-                    return `<a href="${url}" title="${this.escapeHtml(target)}">${label || target}</a>`;
-                }
-            );
+            // Everything left is plain text: escape it, apply emphasis, then
+            // swap the stashed markup back in.
+            const html = this.renderEmphasis(this.escapeHtml(text));
+            return html.replace(/\u0000(\d+)\u0000/g, (_, i) => stash[parseInt(i, 10)]);
+        }
+
+        /**
+         * Bold / italic on already-escaped text. The patterns only ever wrap
+         * existing (escaped) content in <b>/<i>, so they cannot introduce
+         * attributes or unescaped markup.
+         */
+        renderEmphasis(escaped) {
+            let clean = escaped;
+
+            // Bold (** ... **) – run before italic so it wins the `*` tokens.
+            clean = clean.replace(/\*\*([^*]+?)\*\*/g, '<b>$1</b>');
+
+            // Italic (* ... * or _ ... _) – avoid eating `**` leftovers and
+            // intra-word underscores like `foo_bar_baz`.
+            clean = clean.replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g, '$1<i>$2</i>');
+            clean = clean.replace(/(^|[\s(])_([^_\s][^_]*?)_(?![A-Za-z0-9])/g, '$1<i>$2</i>');
 
             return clean;
         }
 
+        /**
+         * Escape text for use in HTML element content *and* attribute values
+         * (mw.html.escape escapes both quote characters).
+         */
         escapeHtml(text) {
-            return $('<div>').text(text).html();
+            return mw.html.escape(String(text == null ? '' : text));
         }
 
         /**
          * Returns true only for HTTP(S), protocol-relative, root-relative,
          * or in-page anchor URLs. Rejects javascript:, data:, vbscript:, etc.
+         * Operates on the raw (unescaped) URL; control characters and
+         * backslashes are rejected outright because browsers strip or
+         * normalise them while parsing the scheme / authority.
          */
         isSafeUrl(url) {
-            const trimmed = String(url).trim();
-            return /^(https?:\/\/|\/\/|\/|#)/i.test(trimmed);
+            const value = String(url);
+            if (/[\u0000- \u007f\\]/.test(value)) {
+                return false;
+            }
+            return /^(https?:\/\/|\/\/[^/]|\/(?!\/)|#)/i.test(value);
         }
 
         /* ------------------------------------------------------------------
@@ -478,36 +554,46 @@
         }
 
         /**
+         * Show an error as an assistant message.
+         */
+        showError(message) {
+            this.appendMessage('assistant', mw.msg('mwassistant-chat-error', message));
+        }
+
+        /**
          * Build a "human-friendly" header + query string for a tool call.
          */
         formatToolHeader(toolName, args) {
+            const unknownPage = mw.msg('mwassistant-chat-tool-unknown-page');
             switch (toolName) {
                 case 'mw_run_smw_ask':
-                    return { headerTitle: 'SMW Query', displayQuery: args.ask || 'No query' };
+                    return { headerTitle: mw.msg('mwassistant-chat-tool-smw-ask'), displayQuery: args.ask || mw.msg('mwassistant-chat-tool-no-query') };
                 case 'mw_get_page':
-                    return { headerTitle: 'Read Page', displayQuery: args.title || 'Unknown Page' };
+                    return { headerTitle: mw.msg('mwassistant-chat-tool-get-page'), displayQuery: args.title || unknownPage };
                 case 'mw_page_info':
-                    return { headerTitle: 'Page Info', displayQuery: args.title || 'Unknown Page' };
+                    return { headerTitle: mw.msg('mwassistant-chat-tool-page-info'), displayQuery: args.title || unknownPage };
                 case 'mw_search_pages':
-                    return { headerTitle: 'Keyword Search', displayQuery: args.query || '' };
+                    return { headerTitle: mw.msg('mwassistant-chat-tool-search-pages'), displayQuery: args.query || '' };
                 case 'mw_find_pages_by_title':
                     return {
-                        headerTitle: 'Title Lookup',
+                        headerTitle: mw.msg('mwassistant-chat-tool-find-pages-by-title'),
                         displayQuery: (args.prefix || '') + (args.namespace ? ` (ns=${args.namespace})` : ''),
                     };
                 case 'mw_vector_search':
-                    return { headerTitle: 'Vector Search', displayQuery: args.query || '' };
+                    return { headerTitle: mw.msg('mwassistant-chat-tool-vector-search'), displayQuery: args.query || '' };
                 case 'mw_get_categories':
                 case 'mw_get_properties': {
-                    const label = toolName === 'mw_get_categories' ? 'Category Check' : 'Property Check';
-                    if (args.names) return { headerTitle: label, displayQuery: 'Checking: ' + args.names.join(', ') };
-                    if (args.prefix) return { headerTitle: label, displayQuery: 'Search: ' + args.prefix };
-                    return { headerTitle: label, displayQuery: 'List all' };
+                    const label = toolName === 'mw_get_categories'
+                        ? mw.msg('mwassistant-chat-tool-get-categories')
+                        : mw.msg('mwassistant-chat-tool-get-properties');
+                    if (Array.isArray(args.names)) return { headerTitle: label, displayQuery: mw.msg('mwassistant-chat-tool-checking', args.names.join(', ')) };
+                    if (args.prefix) return { headerTitle: label, displayQuery: mw.msg('mwassistant-chat-tool-search-prefix', args.prefix) };
+                    return { headerTitle: label, displayQuery: mw.msg('mwassistant-chat-tool-list-all') };
                 }
                 case 'mw_list_pages':
-                    return { headerTitle: 'List Pages', displayQuery: args.namespace || args.prefix || 'all' };
+                    return { headerTitle: mw.msg('mwassistant-chat-tool-list-pages'), displayQuery: args.namespace || args.prefix || mw.msg('mwassistant-chat-tool-all') };
                 case 'mw_get_category_members':
-                    return { headerTitle: 'Category Members', displayQuery: args.category || '' };
+                    return { headerTitle: mw.msg('mwassistant-chat-tool-category-members'), displayQuery: args.category || '' };
                 default:
                     return { headerTitle: toolName, displayQuery: JSON.stringify(args) };
             }
@@ -523,31 +609,32 @@
 
             if (result && result.error) {
                 displayResult = `<span class="mwassistant-error">${this.escapeHtml(result.error)}</span>`;
-                resultPreview = `Error: ${result.error}`;
+                resultPreview = mw.msg('mwassistant-chat-error', result.error);
             } else if (toolName === 'mw_run_smw_ask') {
-                if (result && result['mwassistant-smw'] && result['mwassistant-smw'].result) {
-                    displayResult = result['mwassistant-smw'].result;
-                    resultPreview = 'SMW Result';
+                const smw = result && result['mwassistant-smw'];
+                if (smw && (Array.isArray(smw.rows) || smw.result)) {
+                    displayResult = this.renderSmwResult(smw);
+                    resultPreview = mw.msg('mwassistant-chat-tool-result-smw');
                 } else {
                     displayResult = `<pre>${this.escapeHtml(JSON.stringify(result, null, 2))}</pre>`;
-                    resultPreview = 'JSON Result';
+                    resultPreview = mw.msg('mwassistant-chat-tool-result-json');
                 }
             } else if (this.isPaginatedEnvelope(result)) {
                 ({ displayResult, resultPreview } =
                     this.formatPaginatedEnvelope(toolName, result));
             } else if (Array.isArray(result)) {
                 if (result.length === 0) {
-                    displayResult = '<em>No matches found.</em>';
-                    resultPreview = 'No matches';
+                    displayResult = this.noMatchesHtml();
+                    resultPreview = mw.msg('mwassistant-chat-tool-no-matches-short');
                 } else if (typeof result[0] === 'string') {
                     displayResult = this.renderStringList(result);
                     resultPreview = result.join(', ');
                 } else if (result[0] && result[0].title && typeof result[0].score === 'number') {
                     displayResult = this.renderScoredList(result);
-                    resultPreview = `${result.length} results found`;
+                    resultPreview = mw.msg('mwassistant-chat-tool-results-found', result.length);
                 } else {
                     displayResult = `<pre>${this.escapeHtml(JSON.stringify(result, null, 2))}</pre>`;
-                    resultPreview = 'Array Result';
+                    resultPreview = mw.msg('mwassistant-chat-tool-result-array');
                 }
             } else if (typeof result === 'string') {
                 const maxLen = 500;
@@ -555,13 +642,13 @@
                 if (result.length > maxLen) {
                     displayResult = `<div class="mwassistant-collapsed-content">${
                         this.escapeHtml(result.substring(0, maxLen))
-                    }...<br><em>(${result.length} chars total)</em></div>`;
+                    }...<br><em>${this.escapeHtml(mw.msg('mwassistant-chat-tool-chars-total', result.length))}</em></div>`;
                 } else {
                     displayResult = this.escapeHtml(result);
                 }
             } else {
                 displayResult = `<pre>${this.escapeHtml(JSON.stringify(result, null, 2))}</pre>`;
-                resultPreview = 'Output Object';
+                resultPreview = mw.msg('mwassistant-chat-tool-result-object');
             }
 
             if (resultPreview.length > 50) resultPreview = resultPreview.substring(0, 50) + '...';
@@ -593,7 +680,7 @@
 
             let body;
             if (list.length === 0) {
-                body = '<em>No matches found.</em>';
+                body = this.noMatchesHtml();
             } else if (typeof list[0] === 'string') {
                 body = this.renderStringList(list);
             } else if (list[0] && typeof list[0].score === 'number' && list[0].title) {
@@ -605,22 +692,76 @@
             }
 
             const meta = result.truncated
-                ? `<div class="mwassistant-tool-truncated">Truncated: showing ${result.count} of ≤${result.limit} — more results likely exist.</div>`
-                : `<div class="mwassistant-tool-meta">${result.count} of ${result.limit}</div>`;
+                ? `<div class="mwassistant-tool-truncated">${this.escapeHtml(mw.msg('mwassistant-chat-tool-truncated', result.count, result.limit))}</div>`
+                : `<div class="mwassistant-tool-meta">${this.escapeHtml(mw.msg('mwassistant-chat-tool-count', result.count, result.limit))}</div>`;
 
             let suggestionsHtml = '';
             if (suggestions.length) {
                 suggestionsHtml =
-                    '<div class="mwassistant-tool-suggestions"><b>Suggestions:</b>' +
+                    `<div class="mwassistant-tool-suggestions"><b>${this.escapeHtml(mw.msg('mwassistant-chat-tool-suggestions'))}</b>` +
                     this.renderStringList(suggestions) +
                     '</div>';
             }
 
             const displayResult = meta + body + suggestionsHtml;
             const resultPreview = result.truncated
-                ? `${result.count}/${result.limit} (truncated)`
-                : `${result.count} result${result.count === 1 ? '' : 's'}`;
+                ? mw.msg('mwassistant-chat-tool-preview-truncated', result.count, result.limit)
+                : mw.msg('mwassistant-chat-tool-preview-count', result.count);
             return { displayResult, resultPreview };
+        }
+
+        /**
+         * Render an SMW #ask result. Never inserts server-provided HTML:
+         * structured `rows` become an escaped table/list, and the legacy
+         * `result` string is shown as plain text.
+         */
+        renderSmwResult(smw) {
+            if (Array.isArray(smw.rows)) {
+                const rows = smw.rows;
+                if (rows.length === 0) {
+                    return this.noMatchesHtml();
+                }
+                const cell = (v) => this.escapeHtml(
+                    v !== null && typeof v === 'object' ? JSON.stringify(v) : v
+                );
+                // mwassistant-smw shape: { title, printouts: { label: [values] } },
+                // with column order given by smw.printouts.
+                if (rows.every((r) => r && typeof r.title === 'string' &&
+                    r.printouts !== null && typeof r.printouts === 'object')) {
+                    const labels = Array.isArray(smw.printouts) ? smw.printouts : [];
+                    const values = (v) => (Array.isArray(v) ? v : (v === undefined ? [] : [v]))
+                        .map(cell).join('<br>');
+                    const head = [mw.msg('mwassistant-chat-smw-page')].concat(labels)
+                        .map((c) => `<th>${this.escapeHtml(c)}</th>`).join('');
+                    const body = rows.map((r) =>
+                        `<tr><td><a href="${this.escapeHtml(mw.util.getUrl(r.title))}">${this.escapeHtml(r.title)}</a></td>${
+                            labels.map((l) => `<td>${values(r.printouts[l])}</td>`).join('')
+                        }</tr>`
+                    ).join('');
+                    return `<table class="mwassistant-smw-table"><thead><tr>${head}</tr></thead>` +
+                        `<tbody>${body}</tbody></table>`;
+                }
+                if (rows.every((r) => r !== null && typeof r === 'object' && !Array.isArray(r))) {
+                    const cols = [];
+                    rows.forEach((r) => Object.keys(r).forEach((k) => {
+                        if (cols.indexOf(k) === -1) cols.push(k);
+                    }));
+                    const head = cols.map((c) => `<th>${this.escapeHtml(c)}</th>`).join('');
+                    const body = rows.map((r) =>
+                        `<tr>${cols.map((c) => `<td>${cell(r[c])}</td>`).join('')}</tr>`
+                    ).join('');
+                    return `<table class="mwassistant-smw-table"><thead><tr>${head}</tr></thead>` +
+                        `<tbody>${body}</tbody></table>`;
+                }
+                return `<ul class="mwassistant-tool-list">${
+                    rows.map((r) => `<li>${cell(r)}</li>`).join('')
+                }</ul>`;
+            }
+            return `<div class="mwassistant-smw-text">${this.escapeHtml(smw.result)}</div>`;
+        }
+
+        noMatchesHtml() {
+            return `<em>${this.escapeHtml(mw.msg('mwassistant-chat-tool-no-matches'))}</em>`;
         }
 
         renderStringList(items) {
@@ -632,7 +773,7 @@
         renderScoredList(rows) {
             return `<ul class="mwassistant-tool-list">${
                 rows.map((x) =>
-                    `<li><b>[[${this.escapeHtml(x.title)}]]</b> (Score: ${x.score.toFixed(2)})</li>`
+                    `<li><b>[[${this.escapeHtml(x.title)}]]</b> ${this.escapeHtml(mw.msg('mwassistant-chat-tool-score', x.score.toFixed(2)))}</li>`
                 ).join('')
             }</ul>`;
         }
@@ -676,14 +817,14 @@
                         <span class="mwassistant-tool-preview">
                             <span class="mwassistant-tool-preview-query">${this.escapeHtml(queryPreview)}</span>
                             <span class="mwassistant-tool-spinner" aria-hidden="true"></span>
-                            <span class="mwassistant-tool-status">Running...</span>
+                            <span class="mwassistant-tool-status">${this.escapeHtml(mw.msg('mwassistant-chat-tool-running'))}</span>
                         </span>
                     </summary>
                     <div class="mwassistant-tool-expanded">
                         <div class="mwassistant-tool-query"><code>${this.escapeHtml(String(displayQuery))}</code></div>
                         <div class="mwassistant-tool-result">
-                            <div class="mwassistant-tool-result-header">Result:</div>
-                            <div class="mwassistant-tool-result-content"><em>Waiting for response…</em></div>
+                            <div class="mwassistant-tool-result-header">${this.escapeHtml(mw.msg('mwassistant-chat-tool-result'))}</div>
+                            <div class="mwassistant-tool-result-content"><em>${this.escapeHtml(mw.msg('mwassistant-chat-tool-waiting'))}</em></div>
                         </div>
                     </div>
                 </details>
@@ -710,7 +851,7 @@
             $msg.find('.mwassistant-tool-status').remove();
 
             const elapsedTag = elapsedMs !== null
-                ? ` <span class="mwassistant-tool-elapsed">${elapsedMs} ms</span>`
+                ? ` <span class="mwassistant-tool-elapsed">${this.escapeHtml(mw.msg('mwassistant-chat-tool-elapsed', elapsedMs))}</span>`
                 : '';
             $msg.find('.mwassistant-tool-preview').html(
                 `<span class="mwassistant-tool-preview-query">${
@@ -748,7 +889,7 @@
                 <span class="mwassistant-thinking-dots" aria-hidden="true">
                     <span></span><span></span><span></span>
                 </span>
-                <span class="mwassistant-thinking-label">${this.escapeHtml(label || 'Thinking…')}</span>
+                <span class="mwassistant-thinking-label">${this.escapeHtml(label || mw.msg('mwassistant-chat-thinking'))}</span>
             `);
             $log.append($msg);
             $log.scrollTop($log.prop('scrollHeight'));
@@ -766,9 +907,12 @@
             // Send button
             $root.on('click', '#mwassistant-chat-send', () => this.sendMessage());
 
-            // Enter key = send
-            $root.on('keypress', '#mwassistant-chat-input-text', (e) => {
-                if (e.which === 13 && !e.shiftKey) {
+            // Enter key = send (Shift+Enter inserts a newline). Ignore Enter
+            // while an IME composition is active — it confirms the
+            // composition rather than meaning "send".
+            $root.on('keydown', '#mwassistant-chat-input-text', (e) => {
+                const ev = e.originalEvent || e;
+                if (e.key === 'Enter' && !e.shiftKey && !ev.isComposing && e.keyCode !== 229) {
                     e.preventDefault();
                     this.sendMessage();
                 }
@@ -779,29 +923,34 @@
                 const $btn = $(this);
                 const code = $btn.siblings('pre').text();
 
-                navigator.clipboard?.writeText(code).then(() => {
-                    $btn.text('Copied!');
-                    setTimeout(() => $btn.text('Copy'), 1500);
+                if (!navigator.clipboard) {
+                    $btn.text(mw.msg('mwassistant-chat-copy-error'));
+                    setTimeout(() => $btn.text(mw.msg('mwassistant-chat-copy')), 1500);
+                    return;
+                }
+                navigator.clipboard.writeText(code).then(() => {
+                    $btn.text(mw.msg('mwassistant-chat-copied'));
+                    setTimeout(() => $btn.text(mw.msg('mwassistant-chat-copy')), 1500);
                 }).catch(() => {
-                    $btn.text('Error');
-                    setTimeout(() => $btn.text('Copy'), 1500);
+                    $btn.text(mw.msg('mwassistant-chat-copy-error'));
+                    setTimeout(() => $btn.text(mw.msg('mwassistant-chat-copy')), 1500);
                 });
             });
 
             // New chat button
             $root.on('click', '#mwassistant-new-chat', () => this.startNewChat());
 
-            // Session list click
-            $root.on('click', '.mwassistant-session-item', (e) => {
-                if ($(e.target).hasClass('mwassistant-session-delete')) return;
-                const sessionId = $(e.currentTarget).data('session-id');
+            // Session list: each entry is a real <button>, so keyboard
+            // activation (Enter/Space) comes for free.
+            $root.on('click', '.mwassistant-session-info', (e) => {
+                const sessionId = $(e.currentTarget).closest('.mwassistant-session-item').attr('data-session-id');
                 if (sessionId) this.loadSession(sessionId);
             });
 
             // Session delete button
             $root.on('click', '.mwassistant-session-delete', (e) => {
                 e.stopPropagation();
-                const sessionId = $(e.currentTarget).data('session-id');
+                const sessionId = $(e.currentTarget).attr('data-session-id');
                 if (sessionId) this.deleteSession(sessionId);
             });
         }
@@ -811,41 +960,95 @@
          * ------------------------------------------------------------------ */
 
         async sendMessage() {
+            // Guard against double submits: the Enter key path never sees the
+            // disabled Send button, so track the in-flight request ourselves.
+            if (this._inFlight) return;
+
             const $input = this.$container.find('#mwassistant-chat-input-text');
             const text = $input.val().trim();
             if (!text) return;
 
+            // Each request gets its own id + AbortController. Starting a new
+            // chat or loading another session aborts it and bumps the id, so
+            // any late events from the old stream are ignored instead of
+            // being written into the new log / overwriting this.sessionId.
+            this.abortActiveRequest();
+            const requestId = ++this._requestSeq;
+            this._activeRequestId = requestId;
+            const controller = typeof window.AbortController === 'function'
+                ? new AbortController()
+                : null;
+            this._abortController = controller;
+            const isStale = () => this._activeRequestId !== requestId;
+
             $input.val('');
             this.appendMessage('user', text);
-
-            const $btn = this.$container.find('#mwassistant-chat-send');
-            $btn.prop('disabled', true);
+            this.setBusy(true);
 
             try {
                 if (typeof window.fetch === 'function' && window.ReadableStream) {
-                    await this.sendMessageStreaming(text);
+                    await this.sendMessageStreaming(text, controller, isStale);
                 } else {
-                    await this.sendMessageBuffered(text);
+                    await this.sendMessageBuffered(text, isStale);
                 }
             } catch (err) {
-                console.error('MWAssistant API error:', err);
-                this.appendMessage('assistant', 'Error: failed to reach server.');
+                if (!isStale() && !(err && err.name === 'AbortError')) {
+                    console.error('MWAssistant API error:', err);
+                    this.showError(mw.msg('mwassistant-chat-error-unreachable'));
+                }
             } finally {
-                $btn.prop('disabled', false);
+                if (!isStale()) {
+                    this._activeRequestId = null;
+                    this._abortController = null;
+                    this.setBusy(false);
+                }
             }
+        }
+
+        /**
+         * Toggle the "request in flight" state (guard flag + Send button).
+         */
+        setBusy(busy) {
+            this._inFlight = busy;
+            this.$container.find('#mwassistant-chat-send').prop('disabled', busy);
+        }
+
+        /**
+         * Abort the in-flight request (if any) and mark it stale so none of
+         * its remaining events reach the UI.
+         */
+        abortActiveRequest() {
+            if (this._abortController) {
+                try {
+                    this._abortController.abort();
+                } catch (e) { /* ignore */ }
+            }
+            this._abortController = null;
+            this._activeRequestId = null;
+            this._activeToolNodes.clear();
+            this.setBusy(false);
         }
 
         /**
          * Streaming path: POST to Special:MWAssistantStream and parse SSE
          * frames so we can render each tool step as it happens.
+         *
+         * @param {string} text
+         * @param {AbortController|null} controller
+         * @param {Function} isStale Returns true once this request was superseded
          */
-        async sendMessageStreaming(text) {
+        async sendMessageStreaming(text, controller, isStale) {
             const messages = this.buildMessagesArray(text);
-            const body = { messages, context: this.context };
+            // The CSRF token goes in the JSON body rather than the query
+            // string so it stays out of URLs and server access logs.
+            const body = {
+                messages,
+                context: this.context,
+                token: mw.user.tokens.get('csrfToken'),
+            };
             if (this.sessionId) body.session_id = this.sessionId;
 
-            const url = mw.util.getUrl('Special:MWAssistantStream') +
-                '?token=' + encodeURIComponent(mw.user.tokens.get('csrfToken'));
+            const url = mw.util.getUrl('Special:MWAssistantStream');
 
             const res = await fetch(url, {
                 method: 'POST',
@@ -855,22 +1058,25 @@
                     'Accept': 'text/event-stream',
                 },
                 body: JSON.stringify(body),
+                signal: controller ? controller.signal : undefined,
             });
 
+            if (isStale()) return;
+
             if (!res.ok || !res.body) {
-                let detail = 'Failed to reach server.';
+                let detail = mw.msg('mwassistant-chat-error-unreachable');
                 try {
                     const errBody = await res.json();
                     if (errBody && errBody.message) detail = errBody.message;
                 } catch (_) { /* ignore */ }
-                this.appendMessage('assistant', 'Error: ' + detail);
+                if (!isStale()) this.showError(detail);
                 return;
             }
 
             this._activeToolNodes.clear();
-            let dismissThinking = this.showThinkingIndicator('Thinking…');
-            let sawFinalAssistant = false;
-            let sawAnyEvent = false;
+            let dismissThinking = this.showThinkingIndicator();
+            let sawAnswer = false;
+            let overflowed = false;
 
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
@@ -880,12 +1086,17 @@
             try {
                 while (true) {
                     const { value, done } = await reader.read();
+                    if (isStale()) {
+                        try { await reader.cancel(); } catch (_) { /* ignore */ }
+                        return;
+                    }
                     if (done) break;
                     buffer += decoder.decode(value, { stream: true });
 
                     if (buffer.length > MAX_BUFFER_BYTES) {
                         console.warn('MWAssistant: SSE buffer exceeded ' + MAX_BUFFER_BYTES + ' bytes; aborting stream.');
-                        await reader.cancel();
+                        overflowed = true;
+                        try { await reader.cancel(); } catch (_) { /* ignore */ }
                         break;
                     }
 
@@ -895,10 +1106,8 @@
                         buffer = buffer.slice(sepIndex + 2);
                         const parsed = this.parseSseFrame(frame);
                         if (!parsed) continue;
-                        sawAnyEvent = true;
 
-                        // Heartbeat just confirms the pipe is alive — don't
-                        // surface it, but it does count as "we got bytes".
+                        // Heartbeat just confirms the pipe is alive.
                         if (parsed.event === 'heartbeat') continue;
 
                         // Hide the placeholder spinner the instant any signal arrives.
@@ -908,27 +1117,32 @@
                         }
 
                         if (this.handleStreamEvent(parsed.event, parsed.data)) {
-                            sawFinalAssistant = true;
+                            sawAnswer = true;
                         }
 
                         // After tool_result the LLM is thinking again until the next event.
-                        if (parsed.event === 'tool_result' && !sawFinalAssistant) {
-                            dismissThinking = this.showThinkingIndicator('Thinking…');
+                        if (parsed.event === 'tool_result' && !sawAnswer) {
+                            dismissThinking = this.showThinkingIndicator();
                         }
                     }
                 }
             } finally {
                 if (dismissThinking) dismissThinking();
-                this._activeToolNodes.clear();
+                if (!isStale()) this._activeToolNodes.clear();
             }
 
-            // If the stream closed without any events, the response body was
-            // empty — almost always a reverse-proxy / output-buffering issue
-            // between PHP and the browser. Show a generic message; the
-            // diagnostic detail goes to console for the operator.
-            if (!sawAnyEvent) {
-                console.warn('MWAssistant: stream closed with no events. Likely server-side buffering (Apache mod_deflate / FastCGI flushpackets). See Special:MWAssistantStream proxy notes.');
-                this.appendMessage('assistant', 'Error: the assistant connection closed before sending a response.');
+            if (isStale()) return;
+
+            if (overflowed) {
+                this.showError(mw.msg('mwassistant-chat-error-too-large'));
+            } else if (!sawAnswer) {
+                // The stream ended without an answer or an error event. The
+                // server always sends a heartbeat first, so this covers both
+                // an empty body (reverse-proxy / output-buffering issues
+                // between PHP and the browser) and an upstream that dropped
+                // the connection mid-turn.
+                console.warn('MWAssistant: stream closed without an assistant message. If this happens on every request, check server-side buffering (Apache mod_deflate / FastCGI flushpackets). See Special:MWAssistantStream proxy notes.');
+                this.showError(mw.msg('mwassistant-chat-error-closed'));
             }
         }
 
@@ -936,9 +1150,10 @@
          * Fallback path (older browsers without fetch streams): use the
          * legacy buffered API endpoint and render once everything finishes.
          */
-        async sendMessageBuffered(text) {
+        async sendMessageBuffered(text, isStale) {
             const payload = this.buildPayload(text);
             const data = await this.mwApi.post(payload);
+            if (isStale()) return;
             this.handleResponse(data);
         }
 
@@ -967,9 +1182,10 @@
         }
 
         /**
-         * Dispatch a parsed SSE event into UI updates. Returns true when the
-         * user-visible answer was rendered (so the caller stops the
-         * "thinking" indicator).
+         * Dispatch a parsed SSE event into UI updates. Returns true when a
+         * user-visible answer (assistant message or error) was rendered, so
+         * the caller stops the "thinking" indicator and knows the turn did
+         * not end silently.
          */
         handleStreamEvent(event, data) {
             switch (event) {
@@ -1005,11 +1221,10 @@
                 case 'assistant_message': {
                     if (!data.content) return false;
                     this.appendMessage('assistant', data.content);
-                    return !!data.is_final;
+                    return true;
                 }
                 case 'error': {
-                    const msg = (data && data.message) || 'The assistant ran into an error.';
-                    this.appendMessage('assistant', 'Error: ' + msg);
+                    this.showError((data && data.message) || mw.msg('mwassistant-chat-error-generic'));
                     return true;
                 }
                 case 'done': {
@@ -1082,7 +1297,7 @@
             const result = data['mwassistant-chat'];
 
             if (!result) {
-                this.appendMessage('assistant', 'Error: malformed response.');
+                this.showError(mw.msg('mwassistant-chat-error-malformed'));
                 return;
             }
 
@@ -1101,7 +1316,7 @@
             }
 
             // Show assistant message
-            if (result.messages?.length) {
+            if (result.messages && result.messages.length) {
                 const last = result.messages[result.messages.length - 1];
                 this.appendMessage(last.role, last.content);
                 
@@ -1109,14 +1324,14 @@
                 if (result.messages.length <= 2) {
                     // Try to get title from session
                     const session = this.sessions.find(s => s.session_id === this.sessionId);
-                    if (session?.title) {
+                    if (session && session.title) {
                         this.$container.find('#mwassistant-chat-title').text(session.title);
                     }
                 }
             } else if (result.error) {
-                this.appendMessage('assistant', 'Error: ' + (result.message || 'Unknown'));
+                this.showError(result.message || mw.msg('mwassistant-chat-error-generic'));
             } else {
-                this.appendMessage('assistant', 'Error: malformed response.');
+                this.showError(mw.msg('mwassistant-chat-error-malformed'));
             }
         }
     }

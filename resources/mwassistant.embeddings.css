@@ -12,12 +12,12 @@
 .mwassistant-batch-banner {
     margin: 0 0 1em;
     padding: 12px 16px;
-    background: #eaf3ff;
-    border: 1px solid #a3c2f5;
-    border-left: 4px solid #36c;
+    background: var(--background-color-progressive-subtle, #eaf3ff);
+    border: 1px solid var(--border-color-progressive, #a3c2f5);
+    border-left: 4px solid var(--border-color-progressive, #36c);
     border-radius: 4px;
     line-height: 1.45;
-    color: #202122;
+    color: var(--color-base, #202122);
 }
 
 .mwassistant-batch-reload-link {
@@ -35,8 +35,8 @@
 
 /* Stat Card */
 .mwassistant-stat-card {
-    background: #fff;
-    border: 1px solid #c8ccd1;
+    background: var(--background-color-base, #fff);
+    border: 1px solid var(--border-color-subtle, #c8ccd1);
     border-radius: 8px;
     padding: 20px;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
@@ -47,7 +47,7 @@
 
 .mwassistant-stat-label {
     font-size: 0.85em;
-    color: #54595d;
+    color: var(--color-subtle, #54595d);
     text-transform: uppercase;
     letter-spacing: 0.05em;
     margin-bottom: 5px;
@@ -57,17 +57,17 @@
 .mwassistant-stat-value {
     font-size: 2em;
     font-weight: 700;
-    color: #202122;
+    color: var(--color-base, #202122);
     line-height: 1.2;
 }
 
 /* Section Headers */
 .mwassistant-section-header {
-    border-bottom: 2px solid #eaecf0;
+    border-bottom: 2px solid var(--border-color-subtle, #eaecf0);
     margin-bottom: 20px;
     padding-bottom: 10px;
     font-weight: normal;
-    color: #202122;
+    color: var(--color-base, #202122);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -78,25 +78,25 @@
     width: 100%;
     border-collapse: separate;
     border-spacing: 0;
-    border: 1px solid #c8ccd1;
+    border: 1px solid var(--border-color-subtle, #c8ccd1);
     border-radius: 8px;
     overflow: hidden;
     margin-bottom: 30px;
-    background: #fff;
+    background: var(--background-color-base, #fff);
 }
 
 .mwassistant-table th {
-    background: #f8f9fa;
-    color: #202122;
+    background: var(--background-color-interactive-subtle, #f8f9fa);
+    color: var(--color-base, #202122);
     font-weight: 600;
     text-align: left;
     padding: 3px 12px;
-    border-bottom: 1px solid #c8ccd1;
+    border-bottom: 1px solid var(--border-color-subtle, #c8ccd1);
 }
 
 .mwassistant-table td {
     padding: 3px 12px;
-    border-bottom: 1px solid #eaecf0;
+    border-bottom: 1px solid var(--border-color-subtle, #eaecf0);
     vertical-align: middle;
 }
 
@@ -105,7 +105,7 @@
 }
 
 .mwassistant-table tr:hover {
-    background-color: #f8f9fa;
+    background-color: var(--background-color-interactive-subtle, #f8f9fa);
 }
 
 /* Status Pills */
@@ -120,18 +120,18 @@
 }
 
 .mwassistant-status-pill.synced {
-    background-color: #dff0d8;
-    color: #2b7d2b;
+    background-color: var(--background-color-success-subtle, #dff0d8);
+    color: var(--color-success, #2b7d2b);
 }
 
 .mwassistant-status-pill.out-of-date {
-    background-color: #fcf8e3;
-    color: #8a6d3b;
+    background-color: var(--background-color-warning-subtle, #fcf8e3);
+    color: var(--color-warning, #8a6d3b);
 }
 
 .mwassistant-status-pill.not-embedded {
-    background-color: #f2dede;
-    color: #a94442;
+    background-color: var(--background-color-error-subtle, #f2dede);
+    color: var(--color-error, #a94442);
 }
 
 .mwassistant-status-pill .count {
@@ -142,9 +142,9 @@
 /* Action Button in Table */
 .mwassistant-action-btn {
     appearance: none;
-    background-color: #36c;
-    border: 1px solid #36c;
-    color: #fff;
+    background-color: var(--background-color-progressive, #36c);
+    border: 1px solid var(--border-color-progressive, #36c);
+    color: var(--color-inverted-fixed, #fff);
     padding: 6px 12px;
     border-radius: 4px;
     cursor: pointer;
@@ -154,19 +154,19 @@
 }
 
 .mwassistant-action-btn:hover {
-    background-color: #447ff5;
-    border-color: #447ff5;
+    background-color: var(--background-color-progressive--hover, #447ff5);
+    border-color: var(--border-color-progressive--hover, #447ff5);
 }
 
 .mwassistant-action-btn:active {
-    background-color: #2a4b8d;
-    border-color: #2a4b8d;
+    background-color: var(--background-color-progressive--active, #2a4b8d);
+    border-color: var(--border-color-progressive--active, #2a4b8d);
 }
 
 /* Single Page Update Form */
 .mwassistant-single-update-card {
-    background: #f8f9fa;
-    border: 1px solid #c8ccd1;
+    background: var(--background-color-interactive-subtle, #f8f9fa);
+    border: 1px solid var(--border-color-subtle, #c8ccd1);
     border-radius: 8px;
     padding: 20px;
     display: flex;
@@ -176,7 +176,7 @@
 
 .mwassistant-input {
     padding: 8px 12px;
-    border: 1px solid #72777d;
+    border: 1px solid var(--border-color-interactive, #72777d);
     border-radius: 4px;
     font-size: 1em;
     flex-grow: 1;
@@ -184,7 +184,7 @@
 }
 
 .mwassistant-input:focus {
-    border-color: #36c;
-    box-shadow: inset 0 0 0 1px #36c;
+    border-color: var(--border-color-progressive, #36c);
+    box-shadow: inset 0 0 0 1px var(--box-shadow-color-progressive--focus, #36c);
     outline: none;
 }

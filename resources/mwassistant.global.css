@@ -21,7 +21,7 @@
     background: transparent;
     border: none;
     border-radius: 50%;
-    color: #36c;
+    color: var(--color-progressive, #36c);
     cursor: pointer;
     display: inline-flex;
     align-items: center;
@@ -34,12 +34,12 @@
 .mwassistant-search-icon-btn:hover,
 .mwassistant-search-icon-btn:focus {
     opacity: 1;
-    background-color: rgba(54, 102, 204, 0.12);
+    background-color: var(--background-color-progressive-subtle, rgba(54, 102, 204, 0.12));
     outline: none;
 }
 
 .mwassistant-search-icon-btn:focus-visible {
-    box-shadow: 0 0 0 2px #36c;
+    box-shadow: 0 0 0 2px var(--box-shadow-color-progressive--focus, #36c);
 }
 
 .mwassistant-search-icon-btn svg {
