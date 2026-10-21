@@ -21,16 +21,15 @@ jobs:
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: "8.1"
+          php-version: "8.3"
           extensions: json, mbstring
           tools: composer
 
-      - name: Install dependencies
-        run: composer install --prefer-dist --no-progress
-
+      # php -l needs no Composer dependencies. xargs (unlike find -exec ... \;)
+      # exits non-zero when any file fails, so syntax errors fail the job.
       - name: Syntax check
         run: |
-          find includes -name "*.php" -exec php -l {} \;
+          find includes -name "*.php" -print0 | xargs -0 -n1 php -l
 
   test:
     name: PHPUnit Tests
@@ -52,6 +51,11 @@ jobs:
         run: |
           docker compose pull || echo "Pull failed, will try to continue..."
           docker compose up -d
+          # The platform image bakes in MWAssistant from main, and its Composer
+          # autoloader maps MWAssistant\ there, so tests would exercise main
+          # instead of this checkout. Point the baked path at the mount.
+          docker compose exec -T -w /var/www/html wiki sh -c \
+            'rm -rf extensions/MWAssistant && ln -s /mw-user-extensions/MWAssistant extensions/MWAssistant'
 
       - name: Wait for wiki to be ready
         run: |
@@ -84,10 +88,30 @@ jobs:
 
       - name: Run PHPUnit tests
         run: |
-          docker compose exec -T -w /var/www/html wiki php tests/phpunit/phpunit.php \
-            --testdox \
-            /mw-user-extensions/MWAssistant/tests/phpunit/unit/ \
-            /mw-user-extensions/MWAssistant/tests/phpunit/integration/
+          if docker compose exec -T -w /var/www/html wiki test -f tests/phpunit/phpunit.php; then
+            RUNNER=(php tests/phpunit/phpunit.php)
+          else
+            # MW 1.46 removed tests/phpunit/phpunit.php. Generate phpunit.xml
+            # (its template is left out of release tarballs) and call PHPUnit
+            # directly.
+            MW_VERSION=$(docker compose exec -T -w /var/www/html wiki \
+              sed -n "s/^define( 'MW_VERSION', '\(.*\)' );/\1/p" includes/Defines.php)
+            docker compose exec -T -w /var/www/html wiki curl -sfL -o phpunit.xml.template \
+              "https://raw.githubusercontent.com/wikimedia/mediawiki/${MW_VERSION}/phpunit.xml.template"
+            docker compose exec -T -w /var/www/html wiki php tests/phpunit/generatePHPUnitConfig.php
+            RUNNER=(php vendor/bin/phpunit)
+          fi
+          # PHPUnit 9 only runs its first path argument, so run each suite
+          # directory that has tests. The 1.46 bootstrap guesses "unit tests
+          # only" from the path and would skip loading settings, so force it.
+          for suite in unit integration; do
+            if ! ls tests/phpunit/$suite/*Test.php >/dev/null 2>&1; then
+              echo "No tests in tests/phpunit/$suite; skipping."
+              continue
+            fi
+            docker compose exec -T -w /var/www/html -e MEDIAWIKI_HAS_INTEGRATION_TESTS=1 wiki "${RUNNER[@]}" \
+              --testdox "/mw-user-extensions/MWAssistant/tests/phpunit/$suite/"
+          done
 
       - name: Write test summary
         if: always()

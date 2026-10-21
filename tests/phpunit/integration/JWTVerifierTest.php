@@ -40,11 +40,16 @@ class JWTVerifierTest extends MediaWikiIntegrationTestCase
 
     /**
      * Build a JWT with controllable header, payload, and signing secret.
+     *
+     * Payload overrides are merged onto valid defaults unless $exactPayload
+     * is set, in which case the payload is used as given (so tests can omit
+     * a claim entirely).
      */
     private function buildToken(
         array $headerOverrides = [],
         array $payloadOverrides = [],
-        ?string $secretOverride = null
+        ?string $secretOverride = null,
+        bool $exactPayload = false
     ): string {
         $header = array_merge([
             'typ' => 'JWT',
@@ -52,7 +57,7 @@ class JWTVerifierTest extends MediaWikiIntegrationTestCase
         ], $headerOverrides);
 
         $now = time();
-        $payload = array_merge([
+        $payload = $exactPayload ? $payloadOverrides : array_merge([
             'iss' => 'mw-mcp-server',
             'aud' => 'MWAssistant',
             'iat' => $now,
@@ -193,7 +198,7 @@ class JWTVerifierTest extends MediaWikiIntegrationTestCase
         ];
         unset($payload[$claim]);
 
-        $token = $this->buildToken([], $payload);
+        $token = $this->buildToken([], $payload, null, true);
         $this->assertFalse($this->verifier->verifyMCPToMWToken($token));
     }
 

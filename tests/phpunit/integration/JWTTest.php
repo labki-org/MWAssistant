@@ -10,6 +10,7 @@ use MWAssistant\JWT;
 /**
  * @covers \MWAssistant\JWT
  * @group MWAssistant
+ * @group Database
  */
 class JWTTest extends MediaWikiIntegrationTestCase
 {

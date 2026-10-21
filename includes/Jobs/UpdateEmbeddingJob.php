@@ -2,7 +2,7 @@
 
 namespace MWAssistant\Jobs;
 
-use MediaWiki\Content\ContentHandler;
+use MediaWiki\Content\TextContent;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Title\Title;
 use MWAssistant\MCP\EmbeddingsClient;
@@ -49,7 +49,8 @@ class UpdateEmbeddingJob extends EmbeddingJobBase
                 return true;
             }
 
-            $text = ContentHandler::getContentText($content);
+            // ContentHandler::getContentText() was removed in MW 1.46.
+            $text = $content instanceof TextContent ? $content->getText() : null;
             if (!is_string($text) || trim($text) === '') {
                 return true;
             }
