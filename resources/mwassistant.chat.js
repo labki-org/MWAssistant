@@ -93,31 +93,29 @@
                     <div class="mwassistant-sidebar">
                         <div class="mwassistant-sidebar-header">
                             <button class="mwassistant-new-chat" id="mwassistant-new-chat">
-                                <span class="mwassistant-icon">+</span> New Chat
+                                <span class="mwassistant-icon">+</span> ${this.escapeHtml(mw.msg('mwassistant-chat-new'))}
                             </button>
                         </div>
                         <div class="mwassistant-session-list" id="mwassistant-session-list">
-                            <div class="mwassistant-loading">Loading sessions...</div>
+                            <div class="mwassistant-loading">${this.escapeHtml(mw.msg('mwassistant-chat-loading-sessions'))}</div>
                         </div>
                     </div>
                     <div class="mwassistant-chat">
                         <div class="mwassistant-chat-header">
-                            <h2 id="mwassistant-chat-title">New Chat</h2>
+                            <h2 id="mwassistant-chat-title">${this.escapeHtml(mw.msg('mwassistant-chat-new'))}</h2>
                         </div>
 
                         <div class="mwassistant-chat-log" id="mwassistant-chat-log">
-                            <div class="mwassistant-welcome">
-                                <p>Welcome to MWAssistant! Ask me anything about this wiki.</p>
-                            </div>
+                            ${this.welcomeHtml()}
                         </div>
 
                         <div class="mwassistant-chat-input">
                             <textarea
                                 id="mwassistant-chat-input-text"
                                 rows="3"
-                                placeholder="What's on your mind?"
+                                placeholder="${this.escapeHtml(mw.msg('mwassistant-chat-input-placeholder'))}"
                             ></textarea>
-                            <button id="mwassistant-chat-send">Send</button>
+                            <button id="mwassistant-chat-send">${this.escapeHtml(mw.msg('mwassistant-chat-send'))}</button>
                         </div>
                     </div>
                 </div>
@@ -125,6 +123,12 @@
 
             this.$container.html(html);
             this.$log = this.$container.find('#mwassistant-chat-log');
+        }
+
+        welcomeHtml() {
+            return '<div class="mwassistant-welcome"><p>' +
+                this.escapeHtml(mw.msg('mwassistant-chat-welcome')) +
+                '</p></div>';
         }
 
         /* ------------------------------------------------------------------
@@ -147,11 +151,11 @@
                     this.sessions = Array.isArray(result) ? result : [];
                     this.renderSessionList();
                 } else {
-                    this.showSessionError((result && result.message) || 'Failed to load sessions');
+                    this.showSessionError((result && result.message) || mw.msg('mwassistant-chat-sessions-error'));
                 }
             } catch (err) {
                 console.error('Failed to load sessions:', err);
-                this.showSessionError('Failed to load sessions');
+                this.showSessionError(mw.msg('mwassistant-chat-sessions-error'));
             }
         }
 
@@ -159,13 +163,14 @@
             const $list = this.$container.find('#mwassistant-session-list');
             
             if (this.sessions.length === 0) {
-                $list.html('<div class="mwassistant-empty">No previous chats</div>');
+                $list.html(`<div class="mwassistant-empty">${this.escapeHtml(mw.msg('mwassistant-chat-sessions-empty'))}</div>`);
                 return;
             }
 
+            const deleteLabel = this.escapeHtml(mw.msg('mwassistant-chat-session-delete'));
             const items = this.sessions.map(s => {
                 const safeId = this.escapeHtml(s.session_id || '');
-                const safeTitle = this.escapeHtml(s.title || 'Untitled');
+                const safeTitle = this.escapeHtml(s.title || mw.msg('mwassistant-chat-session-untitled'));
                 const safeDate = this.escapeHtml(formatDate(s.updated_at));
                 const activeClass = s.session_id === this.sessionId ? 'active' : '';
                 return `
@@ -175,7 +180,7 @@
                         <span class="mwassistant-session-title">${safeTitle}</span>
                         <span class="mwassistant-session-date">${safeDate}</span>
                     </div>
-                    <button class="mwassistant-session-delete" data-session-id="${safeId}" title="Delete">×</button>
+                    <button class="mwassistant-session-delete" data-session-id="${safeId}" title="${deleteLabel}" aria-label="${deleteLabel}">×</button>
                 </div>`;
             }).join('');
 
@@ -191,7 +196,7 @@
             this.abortActiveRequest();
             const loadId = ++this._loadSeq;
             const $log = this.$log;
-            $log.html('<div class="mwassistant-loading">Loading conversation...</div>');
+            $log.html(`<div class="mwassistant-loading">${this.escapeHtml(mw.msg('mwassistant-chat-loading-conversation'))}</div>`);
 
             try {
                 const data = await this.mwApi.post({
@@ -207,7 +212,7 @@
                 const result = data['mwassistant-sessions'];
                 if (result && !result.error && result.messages) {
                     this.sessionId = sessionId;
-                    this.$container.find('#mwassistant-chat-title').text(result.title || 'Chat');
+                    this.$container.find('#mwassistant-chat-title').text(result.title || mw.msg('mwassistant-chat-session-untitled'));
                     
                     $log.empty();
                     result.messages.forEach(msg => {
@@ -216,17 +221,17 @@
 
                     this.renderSessionList();  // Update active state
                 } else {
-                    $log.html('<div class="mwassistant-error">Failed to load conversation</div>');
+                    $log.html(`<div class="mwassistant-error">${this.escapeHtml(mw.msg('mwassistant-chat-conversation-error'))}</div>`);
                 }
             } catch (err) {
                 if (loadId !== this._loadSeq) return;
                 console.error('Failed to load session:', err);
-                $log.html('<div class="mwassistant-error">Failed to load conversation</div>');
+                $log.html(`<div class="mwassistant-error">${this.escapeHtml(mw.msg('mwassistant-chat-conversation-error'))}</div>`);
             }
         }
 
         async deleteSession(sessionId) {
-            if (!confirm('Delete this conversation?')) return;
+            if (!confirm(mw.msg('mwassistant-chat-session-delete-confirm'))) return;
 
             try {
                 await this.mwApi.post({
@@ -246,7 +251,7 @@
                 }
             } catch (err) {
                 console.error('Failed to delete session:', err);
-                alert('Failed to delete conversation');
+                alert(mw.msg('mwassistant-chat-session-delete-error'));
             }
         }
 
@@ -254,12 +259,8 @@
             this.abortActiveRequest();
             this._loadSeq++;
             this.sessionId = null;
-            this.$container.find('#mwassistant-chat-title').text('New Chat');
-            this.$log.html(`
-                <div class="mwassistant-welcome">
-                    <p>Welcome to MWAssistant! Ask me anything about this wiki.</p>
-                </div>
-            `);
+            this.$container.find('#mwassistant-chat-title').text(mw.msg('mwassistant-chat-new'));
+            this.$log.html(this.welcomeHtml());
             this.renderSessionList();  // Clear active state
         }
 
@@ -313,7 +314,7 @@
                     const code = this.escapeHtml(codeBlocks[parseInt(cm[1], 10)]);
                     out.push(
                         '<div class="mwassistant-code-wrapper">' +
-                            '<button class="mwassistant-copy-btn" title="Copy code">Copy</button>' +
+                            `<button type="button" class="mwassistant-copy-btn" title="${this.escapeHtml(mw.msg('mwassistant-chat-copy-code'))}">${this.escapeHtml(mw.msg('mwassistant-chat-copy'))}</button>` +
                             `<pre class="mwassistant-code-block"><code>${code}</code></pre>` +
                         '</div>'
                     );
@@ -545,36 +546,46 @@
         }
 
         /**
+         * Show an error as an assistant message.
+         */
+        showError(message) {
+            this.appendMessage('assistant', mw.msg('mwassistant-chat-error', message));
+        }
+
+        /**
          * Build a "human-friendly" header + query string for a tool call.
          */
         formatToolHeader(toolName, args) {
+            const unknownPage = mw.msg('mwassistant-chat-tool-unknown-page');
             switch (toolName) {
                 case 'mw_run_smw_ask':
-                    return { headerTitle: 'SMW Query', displayQuery: args.ask || 'No query' };
+                    return { headerTitle: mw.msg('mwassistant-chat-tool-smw-ask'), displayQuery: args.ask || mw.msg('mwassistant-chat-tool-no-query') };
                 case 'mw_get_page':
-                    return { headerTitle: 'Read Page', displayQuery: args.title || 'Unknown Page' };
+                    return { headerTitle: mw.msg('mwassistant-chat-tool-get-page'), displayQuery: args.title || unknownPage };
                 case 'mw_page_info':
-                    return { headerTitle: 'Page Info', displayQuery: args.title || 'Unknown Page' };
+                    return { headerTitle: mw.msg('mwassistant-chat-tool-page-info'), displayQuery: args.title || unknownPage };
                 case 'mw_search_pages':
-                    return { headerTitle: 'Keyword Search', displayQuery: args.query || '' };
+                    return { headerTitle: mw.msg('mwassistant-chat-tool-search-pages'), displayQuery: args.query || '' };
                 case 'mw_find_pages_by_title':
                     return {
-                        headerTitle: 'Title Lookup',
+                        headerTitle: mw.msg('mwassistant-chat-tool-find-pages-by-title'),
                         displayQuery: (args.prefix || '') + (args.namespace ? ` (ns=${args.namespace})` : ''),
                     };
                 case 'mw_vector_search':
-                    return { headerTitle: 'Vector Search', displayQuery: args.query || '' };
+                    return { headerTitle: mw.msg('mwassistant-chat-tool-vector-search'), displayQuery: args.query || '' };
                 case 'mw_get_categories':
                 case 'mw_get_properties': {
-                    const label = toolName === 'mw_get_categories' ? 'Category Check' : 'Property Check';
-                    if (args.names) return { headerTitle: label, displayQuery: 'Checking: ' + args.names.join(', ') };
-                    if (args.prefix) return { headerTitle: label, displayQuery: 'Search: ' + args.prefix };
-                    return { headerTitle: label, displayQuery: 'List all' };
+                    const label = toolName === 'mw_get_categories'
+                        ? mw.msg('mwassistant-chat-tool-get-categories')
+                        : mw.msg('mwassistant-chat-tool-get-properties');
+                    if (Array.isArray(args.names)) return { headerTitle: label, displayQuery: mw.msg('mwassistant-chat-tool-checking', args.names.join(', ')) };
+                    if (args.prefix) return { headerTitle: label, displayQuery: mw.msg('mwassistant-chat-tool-search-prefix', args.prefix) };
+                    return { headerTitle: label, displayQuery: mw.msg('mwassistant-chat-tool-list-all') };
                 }
                 case 'mw_list_pages':
-                    return { headerTitle: 'List Pages', displayQuery: args.namespace || args.prefix || 'all' };
+                    return { headerTitle: mw.msg('mwassistant-chat-tool-list-pages'), displayQuery: args.namespace || args.prefix || mw.msg('mwassistant-chat-tool-all') };
                 case 'mw_get_category_members':
-                    return { headerTitle: 'Category Members', displayQuery: args.category || '' };
+                    return { headerTitle: mw.msg('mwassistant-chat-tool-category-members'), displayQuery: args.category || '' };
                 default:
                     return { headerTitle: toolName, displayQuery: JSON.stringify(args) };
             }
@@ -590,32 +601,32 @@
 
             if (result && result.error) {
                 displayResult = `<span class="mwassistant-error">${this.escapeHtml(result.error)}</span>`;
-                resultPreview = `Error: ${result.error}`;
+                resultPreview = mw.msg('mwassistant-chat-error', result.error);
             } else if (toolName === 'mw_run_smw_ask') {
                 const smw = result && result['mwassistant-smw'];
                 if (smw && (Array.isArray(smw.rows) || smw.result)) {
                     displayResult = this.renderSmwResult(smw);
-                    resultPreview = 'SMW Result';
+                    resultPreview = mw.msg('mwassistant-chat-tool-result-smw');
                 } else {
                     displayResult = `<pre>${this.escapeHtml(JSON.stringify(result, null, 2))}</pre>`;
-                    resultPreview = 'JSON Result';
+                    resultPreview = mw.msg('mwassistant-chat-tool-result-json');
                 }
             } else if (this.isPaginatedEnvelope(result)) {
                 ({ displayResult, resultPreview } =
                     this.formatPaginatedEnvelope(toolName, result));
             } else if (Array.isArray(result)) {
                 if (result.length === 0) {
-                    displayResult = '<em>No matches found.</em>';
-                    resultPreview = 'No matches';
+                    displayResult = this.noMatchesHtml();
+                    resultPreview = mw.msg('mwassistant-chat-tool-no-matches-short');
                 } else if (typeof result[0] === 'string') {
                     displayResult = this.renderStringList(result);
                     resultPreview = result.join(', ');
                 } else if (result[0] && result[0].title && typeof result[0].score === 'number') {
                     displayResult = this.renderScoredList(result);
-                    resultPreview = `${result.length} results found`;
+                    resultPreview = mw.msg('mwassistant-chat-tool-results-found', result.length);
                 } else {
                     displayResult = `<pre>${this.escapeHtml(JSON.stringify(result, null, 2))}</pre>`;
-                    resultPreview = 'Array Result';
+                    resultPreview = mw.msg('mwassistant-chat-tool-result-array');
                 }
             } else if (typeof result === 'string') {
                 const maxLen = 500;
@@ -623,13 +634,13 @@
                 if (result.length > maxLen) {
                     displayResult = `<div class="mwassistant-collapsed-content">${
                         this.escapeHtml(result.substring(0, maxLen))
-                    }...<br><em>(${result.length} chars total)</em></div>`;
+                    }...<br><em>${this.escapeHtml(mw.msg('mwassistant-chat-tool-chars-total', result.length))}</em></div>`;
                 } else {
                     displayResult = this.escapeHtml(result);
                 }
             } else {
                 displayResult = `<pre>${this.escapeHtml(JSON.stringify(result, null, 2))}</pre>`;
-                resultPreview = 'Output Object';
+                resultPreview = mw.msg('mwassistant-chat-tool-result-object');
             }
 
             if (resultPreview.length > 50) resultPreview = resultPreview.substring(0, 50) + '...';
@@ -661,7 +672,7 @@
 
             let body;
             if (list.length === 0) {
-                body = '<em>No matches found.</em>';
+                body = this.noMatchesHtml();
             } else if (typeof list[0] === 'string') {
                 body = this.renderStringList(list);
             } else if (list[0] && typeof list[0].score === 'number' && list[0].title) {
@@ -673,21 +684,21 @@
             }
 
             const meta = result.truncated
-                ? `<div class="mwassistant-tool-truncated">Truncated: showing ${this.escapeHtml(result.count)} of ≤${result.limit} — more results likely exist.</div>`
-                : `<div class="mwassistant-tool-meta">${this.escapeHtml(result.count)} of ${result.limit}</div>`;
+                ? `<div class="mwassistant-tool-truncated">${this.escapeHtml(mw.msg('mwassistant-chat-tool-truncated', result.count, result.limit))}</div>`
+                : `<div class="mwassistant-tool-meta">${this.escapeHtml(mw.msg('mwassistant-chat-tool-count', result.count, result.limit))}</div>`;
 
             let suggestionsHtml = '';
             if (suggestions.length) {
                 suggestionsHtml =
-                    '<div class="mwassistant-tool-suggestions"><b>Suggestions:</b>' +
+                    `<div class="mwassistant-tool-suggestions"><b>${this.escapeHtml(mw.msg('mwassistant-chat-tool-suggestions'))}</b>` +
                     this.renderStringList(suggestions) +
                     '</div>';
             }
 
             const displayResult = meta + body + suggestionsHtml;
             const resultPreview = result.truncated
-                ? `${result.count}/${result.limit} (truncated)`
-                : `${result.count} result${result.count === 1 ? '' : 's'}`;
+                ? mw.msg('mwassistant-chat-tool-preview-truncated', result.count, result.limit)
+                : mw.msg('mwassistant-chat-tool-preview-count', result.count);
             return { displayResult, resultPreview };
         }
 
@@ -700,7 +711,7 @@
             if (Array.isArray(smw.rows)) {
                 const rows = smw.rows;
                 if (rows.length === 0) {
-                    return '<em>No matches found.</em>';
+                    return this.noMatchesHtml();
                 }
                 const cell = (v) => this.escapeHtml(
                     v !== null && typeof v === 'object' ? JSON.stringify(v) : v
@@ -724,6 +735,10 @@
             return `<div class="mwassistant-smw-text">${this.escapeHtml(smw.result)}</div>`;
         }
 
+        noMatchesHtml() {
+            return `<em>${this.escapeHtml(mw.msg('mwassistant-chat-tool-no-matches'))}</em>`;
+        }
+
         renderStringList(items) {
             return `<ul class="mwassistant-tool-list">${
                 items.map((x) => `<li>${this.escapeHtml(x)}</li>`).join('')
@@ -733,7 +748,7 @@
         renderScoredList(rows) {
             return `<ul class="mwassistant-tool-list">${
                 rows.map((x) =>
-                    `<li><b>[[${this.escapeHtml(x.title)}]]</b> (Score: ${x.score.toFixed(2)})</li>`
+                    `<li><b>[[${this.escapeHtml(x.title)}]]</b> ${this.escapeHtml(mw.msg('mwassistant-chat-tool-score', x.score.toFixed(2)))}</li>`
                 ).join('')
             }</ul>`;
         }
@@ -777,14 +792,14 @@
                         <span class="mwassistant-tool-preview">
                             <span class="mwassistant-tool-preview-query">${this.escapeHtml(queryPreview)}</span>
                             <span class="mwassistant-tool-spinner" aria-hidden="true"></span>
-                            <span class="mwassistant-tool-status">Running...</span>
+                            <span class="mwassistant-tool-status">${this.escapeHtml(mw.msg('mwassistant-chat-tool-running'))}</span>
                         </span>
                     </summary>
                     <div class="mwassistant-tool-expanded">
                         <div class="mwassistant-tool-query"><code>${this.escapeHtml(String(displayQuery))}</code></div>
                         <div class="mwassistant-tool-result">
-                            <div class="mwassistant-tool-result-header">Result:</div>
-                            <div class="mwassistant-tool-result-content"><em>Waiting for response…</em></div>
+                            <div class="mwassistant-tool-result-header">${this.escapeHtml(mw.msg('mwassistant-chat-tool-result'))}</div>
+                            <div class="mwassistant-tool-result-content"><em>${this.escapeHtml(mw.msg('mwassistant-chat-tool-waiting'))}</em></div>
                         </div>
                     </div>
                 </details>
@@ -811,7 +826,7 @@
             $msg.find('.mwassistant-tool-status').remove();
 
             const elapsedTag = elapsedMs !== null
-                ? ` <span class="mwassistant-tool-elapsed">${elapsedMs} ms</span>`
+                ? ` <span class="mwassistant-tool-elapsed">${this.escapeHtml(mw.msg('mwassistant-chat-tool-elapsed', elapsedMs))}</span>`
                 : '';
             $msg.find('.mwassistant-tool-preview').html(
                 `<span class="mwassistant-tool-preview-query">${
@@ -849,7 +864,7 @@
                 <span class="mwassistant-thinking-dots" aria-hidden="true">
                     <span></span><span></span><span></span>
                 </span>
-                <span class="mwassistant-thinking-label">${this.escapeHtml(label || 'Thinking…')}</span>
+                <span class="mwassistant-thinking-label">${this.escapeHtml(label || mw.msg('mwassistant-chat-thinking'))}</span>
             `);
             $log.append($msg);
             $log.scrollTop($log.prop('scrollHeight'));
@@ -881,16 +896,16 @@
                 const code = $btn.siblings('pre').text();
 
                 if (!navigator.clipboard) {
-                    $btn.text('Error');
-                    setTimeout(() => $btn.text('Copy'), 1500);
+                    $btn.text(mw.msg('mwassistant-chat-copy-error'));
+                    setTimeout(() => $btn.text(mw.msg('mwassistant-chat-copy')), 1500);
                     return;
                 }
                 navigator.clipboard.writeText(code).then(() => {
-                    $btn.text('Copied!');
-                    setTimeout(() => $btn.text('Copy'), 1500);
+                    $btn.text(mw.msg('mwassistant-chat-copied'));
+                    setTimeout(() => $btn.text(mw.msg('mwassistant-chat-copy')), 1500);
                 }).catch(() => {
-                    $btn.text('Error');
-                    setTimeout(() => $btn.text('Copy'), 1500);
+                    $btn.text(mw.msg('mwassistant-chat-copy-error'));
+                    setTimeout(() => $btn.text(mw.msg('mwassistant-chat-copy')), 1500);
                 });
             });
 
@@ -951,7 +966,7 @@
             } catch (err) {
                 if (!isStale() && !(err && err.name === 'AbortError')) {
                     console.error('MWAssistant API error:', err);
-                    this.appendMessage('assistant', 'Error: failed to reach server.');
+                    this.showError(mw.msg('mwassistant-chat-error-unreachable'));
                 }
             } finally {
                 if (!isStale()) {
@@ -1021,17 +1036,17 @@
             if (isStale()) return;
 
             if (!res.ok || !res.body) {
-                let detail = 'Failed to reach server.';
+                let detail = mw.msg('mwassistant-chat-error-unreachable');
                 try {
                     const errBody = await res.json();
                     if (errBody && errBody.message) detail = errBody.message;
                 } catch (_) { /* ignore */ }
-                if (!isStale()) this.appendMessage('assistant', 'Error: ' + detail);
+                if (!isStale()) this.showError(detail);
                 return;
             }
 
             this._activeToolNodes.clear();
-            let dismissThinking = this.showThinkingIndicator('Thinking…');
+            let dismissThinking = this.showThinkingIndicator();
             let sawAnswer = false;
             let overflowed = false;
 
@@ -1079,7 +1094,7 @@
 
                         // After tool_result the LLM is thinking again until the next event.
                         if (parsed.event === 'tool_result' && !sawAnswer) {
-                            dismissThinking = this.showThinkingIndicator('Thinking…');
+                            dismissThinking = this.showThinkingIndicator();
                         }
                     }
                 }
@@ -1091,7 +1106,7 @@
             if (isStale()) return;
 
             if (overflowed) {
-                this.appendMessage('assistant', 'Error: the response was too large to display.');
+                this.showError(mw.msg('mwassistant-chat-error-too-large'));
             } else if (!sawAnswer) {
                 // The stream ended without an answer or an error event. The
                 // server always sends a heartbeat first, so this covers both
@@ -1099,7 +1114,7 @@
                 // between PHP and the browser) and an upstream that dropped
                 // the connection mid-turn.
                 console.warn('MWAssistant: stream closed without an assistant message. If this happens on every request, check server-side buffering (Apache mod_deflate / FastCGI flushpackets). See Special:MWAssistantStream proxy notes.');
-                this.appendMessage('assistant', 'Error: the assistant connection closed before sending a response.');
+                this.showError(mw.msg('mwassistant-chat-error-closed'));
             }
         }
 
@@ -1181,8 +1196,7 @@
                     return true;
                 }
                 case 'error': {
-                    const msg = (data && data.message) || 'The assistant ran into an error.';
-                    this.appendMessage('assistant', 'Error: ' + msg);
+                    this.showError((data && data.message) || mw.msg('mwassistant-chat-error-generic'));
                     return true;
                 }
                 case 'done': {
@@ -1255,7 +1269,7 @@
             const result = data['mwassistant-chat'];
 
             if (!result) {
-                this.appendMessage('assistant', 'Error: malformed response.');
+                this.showError(mw.msg('mwassistant-chat-error-malformed'));
                 return;
             }
 
@@ -1287,9 +1301,9 @@
                     }
                 }
             } else if (result.error) {
-                this.appendMessage('assistant', 'Error: ' + (result.message || 'Unknown'));
+                this.showError(result.message || mw.msg('mwassistant-chat-error-generic'));
             } else {
-                this.appendMessage('assistant', 'Error: malformed response.');
+                this.showError(mw.msg('mwassistant-chat-error-malformed'));
             }
         }
     }

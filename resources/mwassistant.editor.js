@@ -72,7 +72,7 @@
             const $btn = $("<button>")
                 .attr("type", "button")
                 .addClass("mwassistant-editor-button mw-ui-button")
-                .text("Ask Assistant")
+                .text(mw.msg("mwassistant-editor-button"))
                 .on("click", (e) => this.toggleSidebar(e));
 
             // Inside the OOUI toolbar (Vector 2022) the button needs to sit
@@ -138,15 +138,20 @@
         initSidebar() {
             this.$sidebar = $('<div id="mwassistant-editor-sidebar"></div>');
 
-            const $header = $(`
-                <div class="mwassistant-editor-sidebar-header">
-                    <span class="mwassistant-editor-sidebar-title">Assistant</span>
-                    <a class="mwassistant-editor-sidebar-fullpage"
-                       href="${mw.util.getUrl('Special:MWAssistant')}"
-                       title="Open full assistant page">↗</a>
-                    <button type="button" class="mwassistant-editor-sidebar-close" aria-label="Close">×</button>
-                </div>
-            `);
+            const fullPageLabel = mw.msg("mwassistant-editor-open-full-page");
+            const closeLabel = mw.msg("mwassistant-editor-close");
+            const $header = $('<div class="mwassistant-editor-sidebar-header"></div>').append(
+                $('<span class="mwassistant-editor-sidebar-title"></span>')
+                    .text(mw.msg("mwassistant-chat-title")),
+                $('<a class="mwassistant-editor-sidebar-fullpage">↗</a>')
+                    .attr({
+                        href: mw.util.getUrl("Special:MWAssistant"),
+                        title: fullPageLabel,
+                        "aria-label": fullPageLabel
+                    }),
+                $('<button type="button" class="mwassistant-editor-sidebar-close">×</button>')
+                    .attr({ title: closeLabel, "aria-label": closeLabel })
+            );
             $header.find(".mwassistant-editor-sidebar-close").on("click", () => this.hideSidebar());
             this.$sidebar.append($header);
 
@@ -162,7 +167,7 @@
 
         initChat($chatContainer) {
             if (!mw.mwAssistant || !mw.mwAssistant.Chat) {
-                $chatContainer.text("Error: MWAssistant Chat module is not loaded.");
+                $chatContainer.text(mw.msg("mwassistant-editor-chat-unavailable"));
                 return;
             }
 
