@@ -71,6 +71,13 @@
             // upgrade tool_start placeholders into final tool_result rows.
             this._activeToolNodes = new Map();
 
+            // In-flight request tracking (see sendMessage()).
+            this._inFlight = false;
+            this._requestSeq = 0;
+            this._activeRequestId = null;
+            this._abortController = null;
+            this._loadSeq = 0;
+
             this.renderUI();
             this.bindEvents();
             this.loadSessions();
@@ -181,7 +188,8 @@
         }
 
         async loadSession(sessionId) {
-            this._activeToolNodes.clear();
+            this.abortActiveRequest();
+            const loadId = ++this._loadSeq;
             const $log = this.$log;
             $log.html('<div class="mwassistant-loading">Loading conversation...</div>');
 
@@ -192,6 +200,9 @@
                     session_id: sessionId,
                     token: mw.user.tokens.get('csrfToken')
                 });
+
+                // A newer load / new chat superseded this one.
+                if (loadId !== this._loadSeq) return;
 
                 const result = data['mwassistant-sessions'];
                 if (result && !result.error && result.messages) {
@@ -208,6 +219,7 @@
                     $log.html('<div class="mwassistant-error">Failed to load conversation</div>');
                 }
             } catch (err) {
+                if (loadId !== this._loadSeq) return;
                 console.error('Failed to load session:', err);
                 $log.html('<div class="mwassistant-error">Failed to load conversation</div>');
             }
@@ -239,7 +251,8 @@
         }
 
         startNewChat() {
-            this._activeToolNodes.clear();
+            this.abortActiveRequest();
+            this._loadSeq++;
             this.sessionId = null;
             this.$container.find('#mwassistant-chat-title').text('New Chat');
             this.$log.html(`
@@ -899,35 +912,84 @@
          * ------------------------------------------------------------------ */
 
         async sendMessage() {
+            // Guard against double submits: the Enter key path never sees the
+            // disabled Send button, so track the in-flight request ourselves.
+            if (this._inFlight) return;
+
             const $input = this.$container.find('#mwassistant-chat-input-text');
             const text = $input.val().trim();
             if (!text) return;
 
+            // Each request gets its own id + AbortController. Starting a new
+            // chat or loading another session aborts it and bumps the id, so
+            // any late events from the old stream are ignored instead of
+            // being written into the new log / overwriting this.sessionId.
+            this.abortActiveRequest();
+            const requestId = ++this._requestSeq;
+            this._activeRequestId = requestId;
+            const controller = typeof window.AbortController === 'function'
+                ? new AbortController()
+                : null;
+            this._abortController = controller;
+            const isStale = () => this._activeRequestId !== requestId;
+
             $input.val('');
             this.appendMessage('user', text);
-
-            const $btn = this.$container.find('#mwassistant-chat-send');
-            $btn.prop('disabled', true);
+            this.setBusy(true);
 
             try {
                 if (typeof window.fetch === 'function' && window.ReadableStream) {
-                    await this.sendMessageStreaming(text);
+                    await this.sendMessageStreaming(text, controller, isStale);
                 } else {
-                    await this.sendMessageBuffered(text);
+                    await this.sendMessageBuffered(text, isStale);
                 }
             } catch (err) {
-                console.error('MWAssistant API error:', err);
-                this.appendMessage('assistant', 'Error: failed to reach server.');
+                if (!isStale() && !(err && err.name === 'AbortError')) {
+                    console.error('MWAssistant API error:', err);
+                    this.appendMessage('assistant', 'Error: failed to reach server.');
+                }
             } finally {
-                $btn.prop('disabled', false);
+                if (!isStale()) {
+                    this._activeRequestId = null;
+                    this._abortController = null;
+                    this.setBusy(false);
+                }
             }
+        }
+
+        /**
+         * Toggle the "request in flight" state (guard flag + Send button).
+         */
+        setBusy(busy) {
+            this._inFlight = busy;
+            this.$container.find('#mwassistant-chat-send').prop('disabled', busy);
+        }
+
+        /**
+         * Abort the in-flight request (if any) and mark it stale so none of
+         * its remaining events reach the UI.
+         */
+        abortActiveRequest() {
+            if (this._abortController) {
+                try {
+                    this._abortController.abort();
+                } catch (e) { /* ignore */ }
+            }
+            this._abortController = null;
+            this._activeRequestId = null;
+            this._activeToolNodes.clear();
+            this.setBusy(false);
         }
 
         /**
          * Streaming path: POST to Special:MWAssistantStream and parse SSE
          * frames so we can render each tool step as it happens.
+         *
+         * @param {string} text
+         * @param {AbortController|null} controller
+         * @param {Function} isStale Returns true once this request was superseded
          */
-        async sendMessageStreaming(text) {
+        async sendMessageStreaming(text, controller, isStale) {
             const messages = this.buildMessagesArray(text);
             const body = { messages, context: this.context };
             if (this.sessionId) body.session_id = this.sessionId;
@@ -943,7 +1005,10 @@
                     'Accept': 'text/event-stream',
                 },
                 body: JSON.stringify(body),
+                signal: controller ? controller.signal : undefined,
             });
+
+            if (isStale()) return;
 
             if (!res.ok || !res.body) {
                 let detail = 'Failed to reach server.';
@@ -951,14 +1016,14 @@
                     const errBody = await res.json();
                     if (errBody && errBody.message) detail = errBody.message;
                 } catch (_) { /* ignore */ }
-                this.appendMessage('assistant', 'Error: ' + detail);
+                if (!isStale()) this.appendMessage('assistant', 'Error: ' + detail);
                 return;
             }
 
             this._activeToolNodes.clear();
             let dismissThinking = this.showThinkingIndicator('Thinking…');
-            let sawFinalAssistant = false;
-            let sawAnyEvent = false;
+            let sawAnswer = false;
+            let overflowed = false;
 
             const reader = res.body.getReader();
             const decoder = new TextDecoder();
@@ -968,12 +1033,17 @@
             try {
                 while (true) {
                     const { value, done } = await reader.read();
+                    if (isStale()) {
+                        try { await reader.cancel(); } catch (_) { /* ignore */ }
+                        return;
+                    }
                     if (done) break;
                     buffer += decoder.decode(value, { stream: true });
 
                     if (buffer.length > MAX_BUFFER_BYTES) {
                         console.warn('MWAssistant: SSE buffer exceeded ' + MAX_BUFFER_BYTES + ' bytes; aborting stream.');
-                        await reader.cancel();
+                        overflowed = true;
+                        try { await reader.cancel(); } catch (_) { /* ignore */ }
                         break;
                     }
 
@@ -983,10 +1053,8 @@
                         buffer = buffer.slice(sepIndex + 2);
                         const parsed = this.parseSseFrame(frame);
                         if (!parsed) continue;
-                        sawAnyEvent = true;
 
-                        // Heartbeat just confirms the pipe is alive — don't
-                        // surface it, but it does count as "we got bytes".
+                        // Heartbeat just confirms the pipe is alive.
                         if (parsed.event === 'heartbeat') continue;
 
                         // Hide the placeholder spinner the instant any signal arrives.
@@ -996,26 +1064,31 @@
                         }
 
                         if (this.handleStreamEvent(parsed.event, parsed.data)) {
-                            sawFinalAssistant = true;
+                            sawAnswer = true;
                         }
 
                         // After tool_result the LLM is thinking again until the next event.
-                        if (parsed.event === 'tool_result' && !sawFinalAssistant) {
+                        if (parsed.event === 'tool_result' && !sawAnswer) {
                             dismissThinking = this.showThinkingIndicator('Thinking…');
                         }
                     }
                 }
             } finally {
                 if (dismissThinking) dismissThinking();
-                this._activeToolNodes.clear();
+                if (!isStale()) this._activeToolNodes.clear();
             }
 
-            // If the stream closed without any events, the response body was
-            // empty — almost always a reverse-proxy / output-buffering issue
-            // between PHP and the browser. Show a generic message; the
-            // diagnostic detail goes to console for the operator.
-            if (!sawAnyEvent) {
-                console.warn('MWAssistant: stream closed with no events. Likely server-side buffering (Apache mod_deflate / FastCGI flushpackets). See Special:MWAssistantStream proxy notes.');
+            if (isStale()) return;
+
+            if (overflowed) {
+                this.appendMessage('assistant', 'Error: the response was too large to display.');
+            } else if (!sawAnswer) {
+                // The stream ended without an answer or an error event. The
+                // server always sends a heartbeat first, so this covers both
+                // an empty body (reverse-proxy / output-buffering issues
+                // between PHP and the browser) and an upstream that dropped
+                // the connection mid-turn.
+                console.warn('MWAssistant: stream closed without an assistant message. If this happens on every request, check server-side buffering (Apache mod_deflate / FastCGI flushpackets). See Special:MWAssistantStream proxy notes.');
                 this.appendMessage('assistant', 'Error: the assistant connection closed before sending a response.');
             }
         }
@@ -1024,9 +1097,10 @@
          * Fallback path (older browsers without fetch streams): use the
          * legacy buffered API endpoint and render once everything finishes.
          */
-        async sendMessageBuffered(text) {
+        async sendMessageBuffered(text, isStale) {
             const payload = this.buildPayload(text);
             const data = await this.mwApi.post(payload);
+            if (isStale()) return;
             this.handleResponse(data);
         }
 
@@ -1055,9 +1129,10 @@
         }
 
         /**
-         * Dispatch a parsed SSE event into UI updates. Returns true when the
-         * user-visible answer was rendered (so the caller stops the
-         * "thinking" indicator).
+         * Dispatch a parsed SSE event into UI updates. Returns true when a
+         * user-visible answer (assistant message or error) was rendered, so
+         * the caller stops the "thinking" indicator and knows the turn did
+         * not end silently.
          */
         handleStreamEvent(event, data) {
             switch (event) {
@@ -1093,7 +1168,7 @@
                 case 'assistant_message': {
                     if (!data.content) return false;
                     this.appendMessage('assistant', data.content);
-                    return !!data.is_final;
+                    return true;
                 }
                 case 'error': {
                     const msg = (data && data.message) || 'The assistant ran into an error.';
