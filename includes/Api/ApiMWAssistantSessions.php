@@ -3,6 +3,7 @@
 namespace MWAssistant\Api;
 
 use MediaWiki\User\UserIdentity;
+use MWAssistant\Chat\ChatRequestValidator;
 use MWAssistant\MCP\ChatClient;
 
 /**
@@ -63,6 +64,7 @@ class ApiMWAssistantSessions extends ApiMWAssistantBase
         if (empty($params['session_id'])) {
             return ['error' => true, 'message' => 'Missing session_id parameter'];
         }
+        $this->assertValidSessionId($params['session_id']);
 
         return $client->getSession($user, $params['session_id']);
     }
@@ -75,8 +77,21 @@ class ApiMWAssistantSessions extends ApiMWAssistantBase
         if (empty($params['session_id'])) {
             return ['error' => true, 'message' => 'Missing session_id parameter'];
         }
+        $this->assertValidSessionId($params['session_id']);
 
         return $client->deleteSession($user, $params['session_id']);
+    }
+
+    /**
+     * Reject session ids that are not UUID v4 before they are put into an
+     * MCP URL path.
+     */
+    private function assertValidSessionId(string $sessionId): void
+    {
+        $err = ChatRequestValidator::validateSessionId($sessionId);
+        if ($err !== null) {
+            $this->dieWithError(['apierror-mwassistant-badparams', $err[1]], $err[0]);
+        }
     }
 
     /**
