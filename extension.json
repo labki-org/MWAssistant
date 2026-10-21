@@ -7,7 +7,7 @@
     "descriptionmsg": "mwassistant-desc",
     "type": "other",
     "requires": {
-        "MediaWiki": ">=1.39.0"
+        "MediaWiki": ">= 1.44.0"
     },
     "AutoloadNamespaces": {
         "MWAssistant\\": "includes/"
@@ -35,10 +35,6 @@
                 "mediawiki.api",
                 "mediawiki.util"
             ],
-            "targets": [
-                "desktop",
-                "mobile"
-            ],
             "localBasePath": "",
             "remoteExtPath": "MWAssistant"
         },
@@ -52,9 +48,6 @@
             "dependencies": [
                 "mediawiki.api",
                 "ext.mwassistant.chat"
-            ],
-            "targets": [
-                "desktop"
             ],
             "localBasePath": "",
             "remoteExtPath": "MWAssistant"
@@ -74,10 +67,6 @@
                 "mediawiki.util",
                 "jquery"
             ],
-            "targets": [
-                "desktop",
-                "mobile"
-            ],
             "localBasePath": "",
             "remoteExtPath": "MWAssistant"
         },
@@ -92,10 +81,6 @@
                 "mediawiki.widgets",
                 "oojs-ui-core",
                 "oojs-ui-widgets"
-            ],
-            "targets": [
-                "desktop",
-                "mobile"
             ],
             "localBasePath": "",
             "remoteExtPath": "MWAssistant"
@@ -152,22 +137,28 @@
     "license-name": "GPL-3.0-or-later",
     "config": {
         "MWAssistantMCPBaseUrl": {
-            "value": "http://localhost:8000"
+            "value": "http://localhost:8000",
+            "description": "Base URL of the MCP server that MediaWiki calls for chat, search and embeddings."
         },
         "MWAssistantJWTMWToMCPSecret": {
-            "value": ""
+            "value": "",
+            "description": "Shared secret used to sign JWTs sent from MediaWiki to the MCP server. Required."
         },
         "MWAssistantJWTMCPToMWSecret": {
-            "value": ""
+            "value": "",
+            "description": "Shared secret used to verify JWTs sent from the MCP server to MediaWiki API modules. Required."
         },
         "MWAssistantEnabled": {
-            "value": true
+            "value": true,
+            "description": "Master switch. When false, no UI modules are loaded, no embedding jobs are queued, and Special:MWAssistant is unavailable."
         },
         "MWAssistantAutoEmbed": {
-            "value": false
+            "value": false,
+            "description": "Queue embedding updates/deletes automatically when pages are saved, deleted, undeleted, moved or imported."
         },
         "MWAssistantJWTTTL": {
-            "value": 30
+            "value": 30,
+            "description": "Lifetime in seconds of JWTs minted for MediaWiki-to-MCP requests."
         },
         "MWAssistantWikiId": {
             "value": "",
