@@ -2,11 +2,15 @@
 
 namespace MWAssistant\Jobs;
 
-use Job;
+use MediaWiki\JobQueue\Job;
 use MediaWiki\Logger\LoggerFactory;
+use MediaWiki\MediaWikiServices;
+use MediaWiki\Page\WikiPage;
+use MediaWiki\Title\Title;
 use MediaWiki\User\User;
 use MWAssistant\Config;
 use Psr\Log\LoggerInterface;
+use Wikimedia\Rdbms\IDBAccessObject;
 
 /**
  * Shared scaffolding for jobs that talk to the MCP embeddings API.
@@ -22,10 +26,40 @@ abstract class EmbeddingJobBase extends Job
      * Resolve the system user used to mint MCP JWTs for service-to-service
      * embedding operations. The MCP server doesn't track per-user state for
      * these calls — the user identity exists only to satisfy the JWT scope.
+     *
+     * Returns null when the account can't be created or claimed (e.g. the
+     * name is invalid or reserved by $wgReservedUsernames handling). That
+     * won't fix itself on retry, so callers should drop the job.
      */
-    protected function resolveSystemUser(): User
+    protected function resolveSystemUser(): ?User
     {
         return User::newSystemUser(Config::SYSTEM_USER_NAME, ['steal' => true]);
+    }
+
+    /**
+     * Log and drop a job whose system user can't be resolved.
+     *
+     * @return bool Always true (job complete, don't retry)
+     */
+    protected function failMissingSystemUser(string $jobName, string $title): bool
+    {
+        $this->logger()->error(
+            '{job} {title} -> could not resolve system user "{user}"; dropping job',
+            ['job' => $jobName, 'title' => $title, 'user' => Config::SYSTEM_USER_NAME]
+        );
+        return true;
+    }
+
+    /**
+     * Load a page from the primary DB so existence checks see deletes,
+     * undeletes and moves that happened after the job was queued, rather
+     * than a lagged replica.
+     */
+    protected function loadLatestPage(Title $title): WikiPage
+    {
+        $wikiPage = MediaWikiServices::getInstance()->getWikiPageFactory()->newFromTitle($title);
+        $wikiPage->loadPageData(IDBAccessObject::READ_LATEST);
+        return $wikiPage;
     }
 
     /**

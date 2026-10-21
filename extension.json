@@ -112,11 +112,21 @@
             "class": "MWAssistant\\Special\\SpecialMWAssistantStream"
         }
     },
+    "HookHandlers": {
+        "main": {
+            "class": "MWAssistant\\Hooks\\MWAssistantHooks"
+        },
+        "autoembedding": {
+            "class": "MWAssistant\\Hooks\\AutoEmbeddingHooks"
+        }
+    },
     "Hooks": {
-        "BeforePageDisplay": "MWAssistant\\Hooks\\MWAssistantHooks::onBeforePageDisplay",
-        "PageSaveComplete": "MWAssistant\\Hooks\\AutoEmbeddingHooks::onPageSaveComplete",
-        "PageDeleteComplete": "MWAssistant\\Hooks\\AutoEmbeddingHooks::onPageDeleteComplete",
-        "PageMoveComplete": "MWAssistant\\Hooks\\AutoEmbeddingHooks::onPageMoveComplete"
+        "BeforePageDisplay": "main",
+        "PageSaveComplete": "autoembedding",
+        "PageDeleteComplete": "autoembedding",
+        "PageUndeleteComplete": "autoembedding",
+        "PageMoveComplete": "autoembedding",
+        "AfterImportPage": "autoembedding"
     },
     "JobClasses": {
         "mwassistantUpdateEmbedding": "MWAssistant\\Jobs\\UpdateEmbeddingJob",
