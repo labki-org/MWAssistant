@@ -147,7 +147,7 @@
                     this.sessions = Array.isArray(result) ? result : [];
                     this.renderSessionList();
                 } else {
-                    this.showSessionError(result?.message || 'Failed to load sessions');
+                    this.showSessionError((result && result.message) || 'Failed to load sessions');
                 }
             } catch (err) {
                 console.error('Failed to load sessions:', err);
@@ -880,7 +880,12 @@
                 const $btn = $(this);
                 const code = $btn.siblings('pre').text();
 
-                navigator.clipboard?.writeText(code).then(() => {
+                if (!navigator.clipboard) {
+                    $btn.text('Error');
+                    setTimeout(() => $btn.text('Copy'), 1500);
+                    return;
+                }
+                navigator.clipboard.writeText(code).then(() => {
                     $btn.text('Copied!');
                     setTimeout(() => $btn.text('Copy'), 1500);
                 }).catch(() => {
@@ -1269,7 +1274,7 @@
             }
 
             // Show assistant message
-            if (result.messages?.length) {
+            if (result.messages && result.messages.length) {
                 const last = result.messages[result.messages.length - 1];
                 this.appendMessage(last.role, last.content);
                 
@@ -1277,7 +1282,7 @@
                 if (result.messages.length <= 2) {
                     // Try to get title from session
                     const session = this.sessions.find(s => s.session_id === this.sessionId);
-                    if (session?.title) {
+                    if (session && session.title) {
                         this.$container.find('#mwassistant-chat-title').text(session.title);
                     }
                 }

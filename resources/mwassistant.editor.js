@@ -161,7 +161,7 @@
         }
 
         initChat($chatContainer) {
-            if (!mw.mwAssistant?.Chat) {
+            if (!mw.mwAssistant || !mw.mwAssistant.Chat) {
                 $chatContainer.text("Error: MWAssistant Chat module is not loaded.");
                 return;
             }
