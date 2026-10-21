@@ -3,6 +3,7 @@
 namespace MWAssistant\Api;
 
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Parser\ParserOptions;
 use MediaWiki\Title\Title;
 
 /**
@@ -51,7 +52,11 @@ class ApiMWAssistantSMW extends ApiMWAssistantBase
         // -------------------------------------------------------------
         $evaluator = new \MWAssistant\SMW\SMWParserEvaluator();
         $parserOutput = $evaluator->evaluate($user, $query);
-        $html = $parserOutput->getText();
+        // ParserOutput::getText() was removed in MW 1.46; runOutputPipeline()
+        // (MW 1.44+) applies the same post-processing.
+        $html = method_exists($parserOutput, 'runOutputPipeline')
+            ? $parserOutput->runOutputPipeline(ParserOptions::newFromUser($user))->getContentHolderText()
+            : $parserOutput->getText();
 
         // -------------------------------------------------------------
         // Permission-filter: SMW ignores Lockdown/ControlAccess, so we

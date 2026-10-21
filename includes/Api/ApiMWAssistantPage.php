@@ -2,7 +2,7 @@
 
 namespace MWAssistant\Api;
 
-use MediaWiki\Content\ContentHandler;
+use MediaWiki\Content\TextContent;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\Title\Title;
 
@@ -80,7 +80,8 @@ class ApiMWAssistantPage extends ApiMWAssistantBase
         }
 
         // 6. Extract wikitext
-        $wikitext = ContentHandler::getContentText($content);
+        // ContentHandler::getContentText() was removed in MW 1.46.
+        $wikitext = $content instanceof TextContent ? $content->getText() : null;
 
         // 7. Get latest revision timestamp
         $revRecord = $services->getRevisionLookup()->getRevisionByTitle($title);

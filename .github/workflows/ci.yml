@@ -84,7 +84,22 @@ jobs:
 
       - name: Run PHPUnit tests
         run: |
-          docker compose exec -T -w /var/www/html wiki php tests/phpunit/phpunit.php \
+          if docker compose exec -T -w /var/www/html wiki test -f tests/phpunit/phpunit.php; then
+            RUNNER=(php tests/phpunit/phpunit.php)
+          else
+            # MW 1.46 removed tests/phpunit/phpunit.php. Generate phpunit.xml
+            # (its template is left out of release tarballs) and call PHPUnit
+            # directly.
+            MW_VERSION=$(docker compose exec -T -w /var/www/html wiki \
+              sed -n "s/^define( 'MW_VERSION', '\(.*\)' );/\1/p" includes/Defines.php)
+            docker compose exec -T -w /var/www/html wiki curl -sfL -o phpunit.xml.template \
+              "https://raw.githubusercontent.com/wikimedia/mediawiki/${MW_VERSION}/phpunit.xml.template"
+            docker compose exec -T -w /var/www/html wiki php tests/phpunit/generatePHPUnitConfig.php
+            RUNNER=(php vendor/bin/phpunit)
+          fi
+          # The 1.46 bootstrap guesses "unit tests only" from the first path
+          # argument and would skip loading settings for the integration suite.
+          docker compose exec -T -w /var/www/html -e MEDIAWIKI_HAS_INTEGRATION_TESTS=1 wiki "${RUNNER[@]}" \
             --testdox \
             /mw-user-extensions/MWAssistant/tests/phpunit/unit/ \
             /mw-user-extensions/MWAssistant/tests/phpunit/integration/
