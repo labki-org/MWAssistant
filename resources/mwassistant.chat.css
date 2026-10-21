@@ -8,8 +8,9 @@
 .mwassistant-layout {
     display: flex;
     height: 700px;
-    background-color: #fff;
-    border: 1px solid #c8ccd1;
+    background-color: var(--background-color-base, #fff);
+    color: var(--color-base, #202122);
+    border: 1px solid var(--border-color-subtle, #c8ccd1);
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     overflow: hidden;
@@ -19,22 +20,22 @@
 /* Sidebar */
 .mwassistant-sidebar {
     width: 260px;
-    background-color: #f0f2f5;
-    border-right: 1px solid #e0e0e0;
+    background-color: var(--background-color-interactive-subtle, #f0f2f5);
+    border-right: 1px solid var(--border-color-subtle, #e0e0e0);
     display: flex;
     flex-direction: column;
 }
 
 .mwassistant-sidebar-header {
     padding: 15px;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid var(--border-color-subtle, #e0e0e0);
 }
 
 .mwassistant-new-chat {
     width: 100%;
     padding: 10px;
-    background-color: #36c;
-    color: white;
+    background-color: var(--background-color-progressive, #36c);
+    color: var(--color-inverted-fixed, white);
     border: none;
     border-radius: 6px;
     cursor: pointer;
@@ -47,7 +48,7 @@
 }
 
 .mwassistant-new-chat:hover {
-    background-color: #447ff5;
+    background-color: var(--background-color-progressive--hover, #447ff5);
 }
 
 .mwassistant-icon {
@@ -77,12 +78,12 @@
 }
 
 .mwassistant-session-item:hover {
-    background-color: #e4e6eb;
+    background-color: var(--background-color-interactive-subtle--hover, #e4e6eb);
 }
 
 .mwassistant-session-item.active {
-    background-color: #e8f0fe;
-    color: #1a73e8;
+    background-color: var(--background-color-progressive-subtle, #e8f0fe);
+    color: var(--color-progressive, #1a73e8);
 }
 
 .mwassistant-session-info {
@@ -113,24 +114,24 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    color: #333;
+    color: var(--color-base, #333);
 }
 
 .mwassistant-session-item.active .mwassistant-session-title {
-    color: #1a73e8;
+    color: var(--color-progressive, #1a73e8);
     font-weight: 600;
 }
 
 .mwassistant-session-date {
     font-size: 0.75em;
-    color: #777;
+    color: var(--color-subtle, #777);
     margin-top: 2px;
 }
 
 .mwassistant-session-delete {
     background: none;
     border: none;
-    color: #999;
+    color: var(--color-subtle, #999);
     font-size: 1.2em;
     cursor: pointer;
     padding: 0 4px;
@@ -146,19 +147,19 @@
 }
 
 .mwassistant-session-delete:hover {
-    color: #d93025;
-    background-color: rgba(217, 48, 37, 0.1);
+    color: var(--color-destructive, #d93025);
+    background-color: var(--background-color-destructive-subtle, rgba(217, 48, 37, 0.1));
 }
 
 .mwassistant-loading, .mwassistant-error, .mwassistant-empty {
     text-align: center;
     padding: 20px;
-    color: #666;
+    color: var(--color-subtle, #666);
     font-size: 0.9em;
 }
 
 .mwassistant-error {
-    color: #d93025;
+    color: var(--color-destructive, #d93025);
 }
 
 /* Chat Area */
@@ -166,14 +167,14 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    background-color: #fff;
+    background-color: var(--background-color-base, #fff);
     min-width: 0; /* Flexbox overflow fix */
 }
 
 .mwassistant-chat-header {
     padding: 15px 20px;
-    border-bottom: 1px solid #e0e0e0;
-    background-color: #fff;
+    border-bottom: 1px solid var(--border-color-subtle, #e0e0e0);
+    background-color: var(--background-color-base, #fff);
 }
 
 .mwassistant-chat-header h2 {
@@ -181,7 +182,7 @@
     font-size: 1.1em;
     font-weight: 600;
     border: none;
-    color: #202124;
+    color: var(--color-base, #202124);
 }
 
 .mwassistant-chat-log {
@@ -197,7 +198,7 @@
 .mwassistant-welcome {
     text-align: center;
     margin-top: 20%;
-    color: #5f6368;
+    color: var(--color-subtle, #5f6368);
 }
 
 .mwassistant-welcome p {
@@ -207,15 +208,17 @@
 /* Input Area - kept mostly same */
 .mwassistant-chat-input {
     padding: 20px;
-    border-top: 1px solid #e0e0e0;
+    border-top: 1px solid var(--border-color-subtle, #e0e0e0);
     display: flex;
     gap: 12px;
-    background-color: #fff;
+    background-color: var(--background-color-base, #fff);
 }
 
 .mwassistant-chat-input textarea {
     flex: 1;
-    border: 1px solid #dadce0;
+    background-color: var(--background-color-base, #fff);
+    color: var(--color-base, #202122);
+    border: 1px solid var(--border-color-base, #dadce0);
     border-radius: 6px;
     padding: 12px;
     resize: none; /* Auto-growth logic via JS would be nice, but fixed for now */
@@ -226,14 +229,14 @@
 }
 
 .mwassistant-chat-input textarea:focus {
-    border-color: #1a73e8;
+    border-color: var(--border-color-progressive--focus, #1a73e8);
     box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
 }
 
 .mwassistant-chat-input button {
     align-self: flex-end;
-    background-color: #1a73e8;
-    color: #fff;
+    background-color: var(--background-color-progressive, #1a73e8);
+    color: var(--color-inverted-fixed, #fff);
     border: none;
     border-radius: 6px;
     padding: 10px 24px;
@@ -244,12 +247,12 @@
 }
 
 .mwassistant-chat-input button:hover {
-    background-color: #1557b0;
+    background-color: var(--background-color-progressive--hover, #1557b0);
 }
 
 .mwassistant-chat-input button:disabled {
-    background-color: #dadce0;
-    color: #80868b;
+    background-color: var(--background-color-disabled, #dadce0);
+    color: var(--color-disabled, #80868b);
     cursor: default;
 }
 
@@ -265,16 +268,16 @@
 }
 
 .mwassistant-msg-user {
-    background-color: #e8f0fe;
-    color: #1f1f1f;
+    background-color: var(--background-color-progressive-subtle, #e8f0fe);
+    color: var(--color-base, #1f1f1f);
     align-self: flex-end;
     border-bottom-right-radius: 4px;
     margin-left: auto;
 }
 
 .mwassistant-msg-assistant {
-    background-color: #f1f3f4;
-    color: #1f1f1f;
+    background-color: var(--background-color-neutral-subtle, #f1f3f4);
+    color: var(--color-base, #1f1f1f);
     align-self: flex-start;
     border-bottom-left-radius: 4px;
     margin-right: auto;
@@ -291,7 +294,7 @@
     top: 8px;
     right: 8px;
     background: rgba(255, 255, 255, 0.1);
-    color: #fff;
+    color: var(--color-inverted-fixed, #fff);
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 4px;
     padding: 4px 8px;
@@ -327,7 +330,7 @@
 }
 
 .mwassistant-inline-code {
-    background-color: rgba(0, 0, 0, 0.05);
+    background-color: var(--background-color-neutral, rgba(0, 0, 0, 0.05));
     padding: 2px 5px;
     border-radius: 3px;
     font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
@@ -366,7 +369,7 @@
     margin: 12px 0 6px 0;
     font-weight: 600;
     line-height: 1.3;
-    color: #1f1f1f;
+    color: var(--color-base, #1f1f1f);
     border: none;
     padding: 0;
 }
@@ -387,9 +390,9 @@
 .mwassistant-md-blockquote {
     margin: 6px 0;
     padding: 4px 12px;
-    border-left: 3px solid #c8ccd1;
-    color: #5f6368;
-    background-color: rgba(0, 0, 0, 0.02);
+    border-left: 3px solid var(--border-color-subtle, #c8ccd1);
+    color: var(--color-subtle, #5f6368);
+    background-color: var(--background-color-neutral-subtle, rgba(0, 0, 0, 0.02));
 }
 
 /* Tool Messages */
@@ -401,17 +404,17 @@
 }
 
 .mwassistant-tool-details {
-    background-color: #fff;
-    border: 1px solid #dadce0;
+    background-color: var(--background-color-base, #fff);
+    border: 1px solid var(--border-color-base, #dadce0);
     border-radius: 8px;
     font-size: 0.9em;
-    color: #333;
+    color: var(--color-base, #333);
     overflow: hidden;
 }
 
 .mwassistant-tool-summary {
     padding: 8px 12px;
-    background-color: #f8f9fa;
+    background-color: var(--background-color-interactive-subtle, #f8f9fa);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -427,7 +430,7 @@
     content: '▶';
     font-size: 0.8em;
     margin-right: 8px;
-    color: #5f6368;
+    color: var(--color-subtle, #5f6368);
     transition: transform 0.2s;
 }
 
@@ -437,14 +440,14 @@
 
 .mwassistant-tool-name {
     font-weight: 600;
-    color: #5f6368;
+    color: var(--color-subtle, #5f6368);
     margin-right: 10px;
     font-size: 0.85em;
     text-transform: uppercase;
 }
 
 .mwassistant-tool-preview {
-    color: #5f6368;
+    color: var(--color-subtle, #5f6368);
     font-family: monospace;
     white-space: nowrap;
     overflow: hidden;
@@ -454,11 +457,13 @@
 
 .mwassistant-tool-expanded {
     padding: 12px;
-    border-top: 1px solid #dadce0;
+    border-top: 1px solid var(--border-color-base, #dadce0);
 }
 
 .mwassistant-tool-query, .mwassistant-tool-result pre {
-    background-color: #f1f3f4;
+    background-color: var(--background-color-neutral-subtle, #f1f3f4);
+    color: var(--color-base, #202122);
+    border: none;
     padding: 10px;
     border-radius: 4px;
     font-family: monospace;
@@ -471,12 +476,12 @@
     font-weight: 600;
     margin-top: 10px;
     margin-bottom: 5px;
-    color: #202124;
+    color: var(--color-base, #202124);
 }
 
 .mwassistant-tool-truncated {
-    background-color: #fff8e1;
-    color: #b06000;
+    background-color: var(--background-color-warning-subtle, #fff8e1);
+    color: var(--color-warning, #b06000);
     padding: 6px 10px;
     border-radius: 4px;
     font-size: 0.85em;
@@ -485,20 +490,20 @@
 
 .mwassistant-tool-meta {
     font-size: 0.8em;
-    color: #5f6368;
+    color: var(--color-subtle, #5f6368);
     margin: 0 0 6px;
 }
 
 .mwassistant-tool-suggestions {
     margin-top: 8px;
     padding-top: 6px;
-    border-top: 1px dashed #e0e0e0;
+    border-top: 1px dashed var(--border-color-subtle, #e0e0e0);
     font-size: 0.9em;
 }
 
 /* Streaming: pending tool block (spinner + status until result arrives) */
 .mwassistant-tool-pending .mwassistant-tool-summary {
-    background-color: #fff8e1;
+    background-color: var(--background-color-warning-subtle, #fff8e1);
 }
 
 .mwassistant-tool-spinner {
@@ -506,8 +511,8 @@
     width: 12px;
     height: 12px;
     margin: 0 6px;
-    border: 2px solid #c8ccd1;
-    border-top-color: #1a73e8;
+    border: 2px solid var(--border-color-subtle, #c8ccd1);
+    border-top-color: var(--border-color-progressive--focus, #1a73e8);
     border-radius: 50%;
     animation: mwassistant-spin 0.8s linear infinite;
     vertical-align: middle;
@@ -519,26 +524,26 @@
 
 .mwassistant-tool-status {
     font-size: 0.85em;
-    color: #5f6368;
+    color: var(--color-subtle, #5f6368);
     font-style: italic;
 }
 
 .mwassistant-tool-elapsed {
     margin-left: 8px;
     font-size: 0.75em;
-    color: #80868b;
+    color: var(--color-subtle, #80868b);
     font-family: monospace;
 }
 
 .mwassistant-tool-error .mwassistant-tool-summary {
-    background-color: #fce8e6;
+    background-color: var(--background-color-error-subtle, #fce8e6);
 }
 
 /* Streaming: "thinking..." indicator while waiting between events */
 .mwassistant-msg-thinking {
     align-self: flex-start;
     background-color: transparent;
-    color: #5f6368;
+    color: var(--color-subtle, #5f6368);
     font-size: 0.9em;
     padding: 4px 8px;
     display: inline-flex;
@@ -556,7 +561,7 @@
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background-color: #5f6368;
+    background-color: var(--color-subtle, #5f6368);
     animation: mwassistant-thinking-pulse 1.2s infinite ease-in-out;
 }
 
@@ -569,7 +574,7 @@
 }
 
 .mwassistant-thinking-label {
-    color: #5f6368;
+    color: var(--color-subtle, #5f6368);
     font-style: italic;
 }
 /* SMW #ask results (rendered as text, never as server HTML) */
@@ -587,7 +592,7 @@
 
 .mwassistant-smw-table th,
 .mwassistant-smw-table td {
-    border: 1px solid #dadce0;
+    border: 1px solid var(--border-color-base, #dadce0);
     padding: 2px 6px;
     text-align: left;
     vertical-align: top;
@@ -611,6 +616,6 @@
 .mwassistant-layout summary:focus-visible,
 .mwassistant-layout a:focus-visible,
 .mwassistant-chat-input textarea:focus-visible {
-    outline: 2px solid #36c;
+    outline: 2px solid var(--outline-color-progressive--focus, #36c);
     outline-offset: 2px;
 }
