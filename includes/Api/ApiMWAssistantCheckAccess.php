@@ -44,7 +44,7 @@ class ApiMWAssistantCheckAccess extends ApiMWAssistantBase
 
         if (empty($titleStrings)) {
             $this->dieWithError(
-                ['apierror-badparams', 'titles cannot be empty'],
+                ['apierror-mwassistant-badparams', 'titles cannot be empty'],
                 'no-titles'
             );
         }
@@ -52,7 +52,7 @@ class ApiMWAssistantCheckAccess extends ApiMWAssistantBase
         // Hard limit to prevent abuse
         if (count($titleStrings) > self::MAX_TITLES_PER_REQUEST) {
             $this->dieWithError(
-                ['apierror-badparams', 'Maximum ' . self::MAX_TITLES_PER_REQUEST . ' titles allowed per request'],
+                ['apierror-mwassistant-badparams', 'Maximum ' . self::MAX_TITLES_PER_REQUEST . ' titles allowed per request'],
                 'too-many-titles'
             );
         }

@@ -2,6 +2,7 @@
 
 namespace MWAssistant\Special;
 
+use MediaWiki\Exception\PermissionsError;
 use MediaWiki\Html\Html;
 use MediaWiki\MediaWikiServices;
 use MediaWiki\SpecialPage\SpecialPage;
@@ -10,6 +11,7 @@ use MediaWiki\Widget\TitleInputWidget;
 use MWAssistant\Jobs\DeleteEmbeddingJob;
 use MWAssistant\Jobs\UpdateEmbeddingJob;
 use MWAssistant\MCP\EmbeddingsClient;
+use MWAssistant\NamespacePermissions;
 
 /**
  * Special page that shows embedding statistics and allows updating vectors
@@ -20,6 +22,10 @@ use MWAssistant\MCP\EmbeddingsClient;
  *  - Trigger batch updates for an entire namespace
  *  - Trigger single-page embedding updates
  *  - Provide autocomplete input for page titles
+ *
+ * Viewing requires 'mwassistant-use' and only covers namespaces the user
+ * can read. Queuing updates (POST) requires 'mwassistant-manage-embeddings'
+ * and a valid edit token.
  */
 class SpecialMWAssistantEmbeddings extends SpecialPage
 {
@@ -29,6 +35,9 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
 
     /** @var MediaWikiServices */
     private $services;
+
+    /** Right required to queue embedding updates. */
+    private const MANAGE_RIGHT = 'mwassistant-manage-embeddings';
 
     /** Per-request cache for the MCP stats payload — kept so submit-then-render
      *  doesn't issue two round-trips to MCP. */
@@ -72,24 +81,76 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
         ]);
         $output->enableOOUI();
 
-        $output->addHTML('<div class="mwassistant-dashboard">');
-
-        // ----- Handle Batch Update -----
-        if ($request->wasPosted() && $request->getCheck('batch_update')) {
-            $ns = (int) $request->getInt('namespace_selector');
-            $this->handleBatchUpdate($ns);
+        $isBatch = $request->wasPosted() && $request->getCheck('batch_update');
+        $isSingle = $request->wasPosted() && $request->getText('page') !== '';
+        if (($isBatch || $isSingle) && !$this->canManage()) {
+            throw new PermissionsError(self::MANAGE_RIGHT);
         }
 
-        // ----- Handle Manual Update -----
-        if ($request->wasPosted() && $request->getText('page')) {
-            $page = $request->getText('page');
-            $this->handleSingleUpdate($page);
+        $output->addHTML('<div class="mwassistant-dashboard">');
+
+        if (($isBatch || $isSingle)
+            && !$this->getContext()->getCsrfTokenSet()->matchTokenField('wpEditToken')
+        ) {
+            $output->addHTML(Html::errorBox($this->msg('sessionfailure')->parse()));
+        } else {
+            // ----- Handle Batch Update -----
+            if ($isBatch) {
+                $ns = (int) $request->getInt('namespace_selector');
+                $this->handleBatchUpdate($ns);
+            }
+
+            // ----- Handle Manual Update -----
+            if ($isSingle) {
+                $page = $request->getText('page');
+                $this->handleSingleUpdate($page);
+            }
         }
 
         // ----- Render main stats table -----
         $this->renderStatsTable();
 
         $output->addHTML('</div>');
+    }
+
+    /**
+     * Whether the current user may queue embedding updates.
+     */
+    private function canManage(): bool
+    {
+        return $this->getUser()->isAllowed(self::MANAGE_RIGHT);
+    }
+
+    /**
+     * Hidden CSRF token field for the POST forms.
+     */
+    private function getTokenField(): string
+    {
+        return Html::hidden('wpEditToken', $this->getContext()->getCsrfTokenSet()->getToken()->toString());
+    }
+
+    /**
+     * Namespaces shown on this page: non-talk, non-User content namespaces
+     * the current user can read, as id => display name.
+     *
+     * @return array<int,string>
+     */
+    private function getVisibleNamespaces(): array
+    {
+        $nsInfo = $this->services->getNamespaceInfo();
+        $readable = array_flip(NamespacePermissions::getReadableNamespaces($this->getUser()));
+        $validNS = [];
+
+        foreach ($nsInfo->getCanonicalNamespaces() as $nsId => $nsName) {
+            if ($nsId >= 0 && !$nsInfo->isTalk($nsId) && $nsId !== NS_USER
+                && isset($readable[$nsId])
+            ) {
+                $validNS[$nsId] = ($nsId === 0) ? $this->msg('blanknamespace')->text() : $nsName;
+            }
+        }
+        ksort($validNS);
+
+        return $validNS;
     }
 
     /* ============================================================
@@ -102,7 +163,13 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
     private function handleBatchUpdate(int $namespace)
     {
         $output = $this->getOutput();
-        $user = $this->getUser();
+
+        if (!isset($this->getVisibleNamespaces()[$namespace])) {
+            $output->addHTML(Html::errorBox(
+                $this->msg('mwassistantembeddings-invalid-namespace')->escaped()
+            ));
+            return;
+        }
 
         try {
             $stats = $this->getStatsCached();
@@ -146,9 +213,11 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
             $this->renderJustQueuedNotice($queued, $skipped);
 
         } catch (\Exception $e) {
-            $output->addHTML(
-                Html::errorBox("Batch update failed: " . htmlspecialchars($e->getMessage()))
-            );
+            $output->addHTML(Html::errorBox(
+                $this->msg('mwassistantembeddings-batch-failed')
+                    ->plaintextParams($e->getMessage())
+                    ->escaped()
+            ));
         }
     }
 
@@ -310,9 +379,19 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
     {
         $output = $this->getOutput();
 
+        // Check read permission before existence, and answer both with the
+        // same message, so this form is not an existence oracle for pages
+        // the user cannot read.
         $title = Title::newFromText($pageName);
-        if (!$title || !$title->exists()) {
-            $output->addHTML(Html::errorBox("Page does not exist: " . htmlspecialchars($pageName)));
+        if (!$title
+            || !$this->services->getPermissionManager()->quickUserCan('read', $this->getUser(), $title)
+            || !$title->exists()
+        ) {
+            $output->addHTML(Html::errorBox(
+                $this->msg('mwassistantembeddings-page-not-found')
+                    ->plaintextParams($pageName)
+                    ->escaped()
+            ));
             return;
         }
 
@@ -320,7 +399,9 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
             $this->services->getJobQueueGroup()->push(new UpdateEmbeddingJob($title));
         } catch (\Throwable $e) {
             $output->addHTML(Html::errorBox(
-                "Could not queue embedding job: " . htmlspecialchars($e->getMessage())
+                $this->msg('mwassistantembeddings-queue-failed')
+                    ->plaintextParams($e->getMessage())
+                    ->escaped()
             ));
             return;
         }
@@ -342,7 +423,6 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
     private function renderStatsTable()
     {
         $output = $this->getOutput();
-        $user = $this->getUser();
 
         // Persistent banner — visible on every render while jobs are in flight,
         // gone once the queue drains. Independent of whether this request
@@ -356,22 +436,31 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
             $mcpRevisions = $error ? [] : ($stats['page_revisions'] ?? []);
             $totalVectors = $error ? 0 : ($stats['total_vectors'] ?? 0);
         } catch (\Exception $e) {
-            $output->addHTML(Html::errorBox("Could not fetch embedding statistics: " . $e->getMessage()));
+            $output->addHTML(Html::errorBox(
+                $this->msg('mwassistantembeddings-stats-failed')
+                    ->plaintextParams($e->getMessage())
+                    ->escaped()
+            ));
             return;
         }
 
         if ($error) {
-            $output->addHTML(
-                Html::errorBox("Error fetching stats: " . htmlspecialchars($stats['message'] ?? "Unknown error"))
-            );
+            $output->addHTML(Html::errorBox(
+                $this->msg('mwassistantembeddings-stats-error')
+                    ->plaintextParams(
+                        $stats['message'] ?? $this->msg('mwassistantembeddings-unknown-error')->text()
+                    )
+                    ->escaped()
+            ));
         }
 
         // ---- Stats Card ----
         $output->addHTML('<div class="mwassistant-stats-grid">');
         $output->addHTML(
             '<div class="mwassistant-stat-card">
-                <div class="mwassistant-stat-label">Total Vectors</div>
-                <div class="mwassistant-stat-value">' . htmlspecialchars($totalVectors) . '</div>
+                <div class="mwassistant-stat-label">'
+                . $this->msg('mwassistantembeddings-total-vectors')->escaped() . '</div>
+                <div class="mwassistant-stat-value">' . htmlspecialchars((string)$totalVectors) . '</div>
              </div>'
         );
         $output->addHTML('</div>');
@@ -381,7 +470,9 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
         $this->renderNamespaceTable($nsStats);
 
         // ---- Single Page Update Form ----
-        $this->renderSingleUpdateForm();
+        if ($this->canManage()) {
+            $this->renderSingleUpdateForm();
+        }
     }
 
     /**
@@ -392,16 +483,12 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
      */
     private function computeNamespaceStats(array $mcpTimestamps, array $mcpRevisions = []): array
     {
-        $nsInfo = $this->services->getNamespaceInfo();
-        $validNS = [];
-
-        // Build allowed namespaces
-        foreach ($nsInfo->getCanonicalNamespaces() as $nsId => $nsName) {
-            if ($nsId >= 0 && !$nsInfo->isTalk($nsId) && $nsId !== NS_USER) {
-                $validNS[$nsId] = ($nsId === 0) ? '(Main)' : $nsName;
-            }
+        // Only namespaces the user can read, so page counts for restricted
+        // namespaces are not disclosed.
+        $validNS = $this->getVisibleNamespaces();
+        if (!$validNS) {
+            return [];
         }
-        ksort($validNS);
 
         $res = $this->fetchPagesWithRevision(array_keys($validNS));
 
@@ -458,16 +545,24 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
     {
         $output = $this->getOutput();
         $action = htmlspecialchars($this->getPageTitle()->getLocalURL());
+        $canManage = $this->canManage();
+        $token = $canManage ? $this->getTokenField() : '';
 
-        $html = '<h3 class="mwassistant-section-header">Namespace Status</h3>';
+        $lblSynced = $this->msg('mwassistantembeddings-col-synced')->escaped();
+        $lblOutdated = $this->msg('mwassistantembeddings-col-outdated')->escaped();
+        $lblSkipped = $this->msg('mwassistantembeddings-pill-skipped')->escaped();
+        $lblMissing = $this->msg('mwassistantembeddings-col-missing')->escaped();
+
+        $html = '<h3 class="mwassistant-section-header">'
+            . $this->msg('mwassistantembeddings-namespace-status')->escaped() . '</h3>';
         $html .= '<table class="mwassistant-table"><thead><tr>
-                    <th>Namespace</th>
-                    <th>Total</th>
-                    <th>Synced</th>
-                    <th>Outdated</th>
-                    <th>Skipped (&lt;10 chars)</th>
-                    <th>Missing</th>
-                    <th>Action</th>
+                    <th>' . $this->msg('mwassistantembeddings-col-namespace')->escaped() . '</th>
+                    <th>' . $this->msg('mwassistantembeddings-col-total')->escaped() . '</th>
+                    <th>' . $lblSynced . '</th>
+                    <th>' . $lblOutdated . '</th>
+                    <th>' . $this->msg('mwassistantembeddings-col-skipped')->escaped() . '</th>
+                    <th>' . $lblMissing . '</th>'
+                    . ($canManage ? '<th>' . $this->msg('mwassistantembeddings-col-action')->escaped() . '</th>' : '') . '
                  </tr></thead><tbody>';
 
         foreach ($stats as $nsId => $row) {
@@ -477,27 +572,30 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
             $html .= '<td>' . $row['total'] . '</td>';
 
             // Pills
-            $html .= '<td><span class="mwassistant-status-pill synced"><span class="label">Synced</span><span class="count">' . $row['synced'] . '</span></span></td>';
+            $html .= '<td><span class="mwassistant-status-pill synced"><span class="label">' . $lblSynced . '</span><span class="count">' . $row['synced'] . '</span></span></td>';
             $html .= '<td>' . ($row['outdated'] ?
-                '<span class="mwassistant-status-pill out-of-date"><span class="label">Outdated</span><span class="count">' . $row['outdated'] . '</span></span>' :
+                '<span class="mwassistant-status-pill out-of-date"><span class="label">' . $lblOutdated . '</span><span class="count">' . $row['outdated'] . '</span></span>' :
                 '0'
             ) . '</td>';
             $html .= '<td>' . ($row['skipped'] ?
-                '<span class="mwassistant-status-pill skipped"><span class="label">Skipped</span><span class="count">' . $row['skipped'] . '</span></span>' :
+                '<span class="mwassistant-status-pill skipped"><span class="label">' . $lblSkipped . '</span><span class="count">' . $row['skipped'] . '</span></span>' :
                 '0'
             ) . '</td>';
             $html .= '<td>' . ($row['missing'] ?
-                '<span class="mwassistant-status-pill not-embedded"><span class="label">Missing</span><span class="count">' . $row['missing'] . '</span></span>' :
+                '<span class="mwassistant-status-pill not-embedded"><span class="label">' . $lblMissing . '</span><span class="count">' . $row['missing'] . '</span></span>' :
                 '0'
             ) . '</td>';
 
             // Action button
-            $html .= '<td>
-                        <form method="post" action="' . $action . '" style="margin:0;">
-                            ' . Html::hidden('namespace_selector', $nsId) . '
-                            <button type="submit" name="batch_update" value="1" class="mwassistant-action-btn">Update</button>
-                        </form>
-                      </td>';
+            if ($canManage) {
+                $html .= '<td>
+                            <form method="post" action="' . $action . '" style="margin:0;">
+                                ' . Html::hidden('namespace_selector', $nsId) . $token . '
+                                <button type="submit" name="batch_update" value="1" class="mwassistant-action-btn">'
+                                . $this->msg('mwassistantembeddings-update-button')->escaped() . '</button>
+                            </form>
+                          </td>';
+            }
 
             $html .= '</tr>';
         }
@@ -514,12 +612,15 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
         $output = $this->getOutput();
         $action = htmlspecialchars($this->getPageTitle()->getLocalURL());
 
-        $output->addHTML('<h3 class="mwassistant-section-header">Single Page Update</h3>');
+        $output->addHTML('<h3 class="mwassistant-section-header">'
+            . $this->msg('mwassistantembeddings-single-header')->escaped() . '</h3>');
         $output->addHTML(
             '<form method="post" action="' . $action . '" class="mwassistant-single-update-card">'
         );
+        $output->addHTML($this->getTokenField());
         $output->addHTML(
-            '<label for="page-input" style="font-weight:600;">Page Title:</label>'
+            '<label for="page-input" style="font-weight:600;">'
+            . $this->msg('mwassistantembeddings-single-label')->escaped() . '</label>'
         );
 
         // Title widget with autocomplete enabled
@@ -527,9 +628,9 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
         $output->addHTML($widget->toString());
 
         $output->addHTML(
-            '<button type="submit" class="mwassistant-action-btn" style="margin-left:10px;">
-                Update Embedding
-             </button>'
+            '<button type="submit" class="mwassistant-action-btn" style="margin-left:10px;">'
+            . $this->msg('mwassistantembeddings-single-button')->escaped() .
+            '</button>'
         );
         $output->addHTML('</form>');
     }
@@ -542,7 +643,7 @@ class SpecialMWAssistantEmbeddings extends SpecialPage
         return new TitleInputWidget([
             'id' => 'page-input',
             'name' => 'page',
-            'placeholder' => 'e.g. Main_Page',
+            'placeholder' => $this->msg('mwassistantembeddings-single-placeholder')->text(),
             'required' => true,
             'infusable' => true,
             'autocomplete' => true,
