@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<ruleset>
+	<rule ref="./vendor/mediawiki/mediawiki-codesniffer/MediaWiki" />
+	<file>includes/</file>
+	<file>tests/</file>
+	<file>MWAssistant.alias.php</file>
+	<arg name="extensions" value="php" />
+	<arg name="encoding" value="UTF-8" />
+	<exclude-pattern type="relative">^vendor/*</exclude-pattern>
+	<exclude-pattern type="relative">^node_modules/*</exclude-pattern>
+</ruleset>
