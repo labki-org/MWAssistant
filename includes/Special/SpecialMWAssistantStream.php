@@ -55,9 +55,28 @@ class SpecialMWAssistantStream extends UnlistedSpecialPage
             return;
         }
 
-        $token = $request->getVal('token', '');
-        if (!$user->matchEditToken($token)) {
+        $rawBody = file_get_contents('php://input');
+        $payload = json_decode($rawBody, true);
+        if (!is_array($payload)) {
+            $this->writeErrorAndExit(400, 'bad_json', 'Request body must be JSON.');
+            return;
+        }
+
+        // The CSRF token travels in the JSON body so it never ends up in
+        // URLs / access logs. The query-string fallback only exists for
+        // clients still running cached JS from before that change.
+        $token = $payload['token'] ?? $request->getVal('token', '');
+        if (!is_string($token) || !$user->matchEditToken($token)) {
             $this->writeErrorAndExit(403, 'bad_token', 'Invalid CSRF token.');
+            return;
+        }
+
+        if ($user->pingLimiter('mwassistant-chat')) {
+            $this->writeErrorAndExit(
+                429,
+                'ratelimited',
+                'You are sending messages too quickly. Please wait a moment and try again.'
+            );
             return;
         }
 
@@ -71,13 +90,6 @@ class SpecialMWAssistantStream extends UnlistedSpecialPage
         // which can be 30+ seconds for a multi-tool query.
         if (session_status() === PHP_SESSION_ACTIVE) {
             @session_write_close();
-        }
-
-        $rawBody = file_get_contents('php://input');
-        $payload = json_decode($rawBody, true);
-        if (!is_array($payload)) {
-            $this->writeErrorAndExit(400, 'bad_json', 'Request body must be JSON.');
-            return;
         }
 
         $messages = $payload['messages'] ?? null;
@@ -117,11 +129,7 @@ class SpecialMWAssistantStream extends UnlistedSpecialPage
             $this->streamSse($upstream, $jwt);
         } catch (Throwable $e) {
             $logger->error('Streaming chat proxy failed: {err}', ['err' => $e->getMessage()]);
-            echo "event: error\ndata: " . json_encode([
-                'code' => 'proxy_failure',
-                'message' => 'Streaming connection failed.',
-            ]) . "\n\n";
-            @flush();
+            $this->writeSseError('proxy_failure', 'Streaming connection failed.');
         }
     }
 
@@ -158,6 +166,16 @@ class SpecialMWAssistantStream extends UnlistedSpecialPage
             throw new \RuntimeException('Failed to encode upstream payload: ' . json_last_error_msg());
         }
 
+        // Upstream HTTP status, captured from the response headers. Until it
+        // is known to be 2xx nothing is forwarded: an error body (e.g. a
+        // JSON/HTML error page from the MCP server or a proxy) must not be
+        // streamed raw to the browser as if it were SSE.
+        $status = 0;
+        $errorBody = '';
+        $isOk = static function () use (&$status): bool {
+            return $status >= 200 && $status < 300;
+        };
+
         $ch = curl_init();
         try {
             curl_setopt_array($ch, [
@@ -177,9 +195,24 @@ class SpecialMWAssistantStream extends UnlistedSpecialPage
                 CURLOPT_HEADER => false,
                 CURLOPT_TCP_NODELAY => true,
                 CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-                CURLOPT_WRITEFUNCTION => function ($ch, $chunk) {
+                CURLOPT_HEADERFUNCTION => static function ($ch, $header) use (&$status) {
+                    // Reset on every status line so interim responses
+                    // (e.g. "100 Continue") don't stick.
+                    if (preg_match('#^HTTP/\S+\s+(\d{3})#', $header, $m)) {
+                        $status = (int)$m[1];
+                    }
+                    return strlen($header);
+                },
+                CURLOPT_WRITEFUNCTION => static function ($ch, $chunk) use ($isOk, &$errorBody) {
                     if (connection_aborted()) {
                         return -1;
+                    }
+                    if (!$isOk()) {
+                        // Keep a bounded prefix for the log only.
+                        if (strlen($errorBody) < 4096) {
+                            $errorBody .= substr($chunk, 0, 4096 - strlen($errorBody));
+                        }
+                        return strlen($chunk);
                     }
                     echo $chunk;
                     @flush();
@@ -195,19 +228,37 @@ class SpecialMWAssistantStream extends UnlistedSpecialPage
             curl_close($ch);
         }
 
-        if (!$ok && !connection_aborted()) {
-            $logger = LoggerFactory::getInstance(Config::LOGGER_CHANNEL);
+        if (connection_aborted()) {
+            return;
+        }
+
+        $logger = LoggerFactory::getInstance(Config::LOGGER_CHANNEL);
+        if ($ok && !$isOk()) {
+            $logger->warning('MCP /chat/stream returned HTTP {http}: {body}', [
+                'http' => $status ?: $httpCode,
+                'body' => $errorBody,
+            ]);
+            $this->writeSseError('upstream_error', 'The assistant service returned an error. Please try again later.');
+        } elseif (!$ok) {
             $logger->warning('MCP /chat/stream cURL failed: errno={errno} err={err} http={http}', [
                 'errno' => $errno,
                 'err' => $errstr,
                 'http' => $httpCode,
             ]);
-            echo "event: error\ndata: " . json_encode([
-                'code' => 'upstream_failure',
-                'message' => "Upstream MCP request failed (HTTP {$httpCode}).",
-            ]) . "\n\n";
-            @flush();
+            $this->writeSseError('upstream_failure', 'Could not reach the assistant service. Please try again later.');
         }
+    }
+
+    /**
+     * Emit an SSE `error` event. Only valid once SSE headers have been sent.
+     */
+    private function writeSseError(string $code, string $message): void
+    {
+        echo "event: error\ndata: " . json_encode([
+            'code' => $code,
+            'message' => $message,
+        ]) . "\n\n";
+        @flush();
     }
 
     /**

@@ -125,6 +125,14 @@
     "AvailableRights": [
         "mwassistant-use"
     ],
+    "RateLimits": {
+        "mwassistant-chat": {
+            "user": [
+                30,
+                60
+            ]
+        }
+    },
     "APIModules": {
         "mwassistant-chat": "MWAssistant\\Api\\ApiMWAssistantChat",
         "mwassistant-sessions": "MWAssistant\\Api\\ApiMWAssistantSessions",

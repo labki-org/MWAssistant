@@ -991,11 +991,16 @@
          */
         async sendMessageStreaming(text, controller, isStale) {
             const messages = this.buildMessagesArray(text);
-            const body = { messages, context: this.context };
+            // The CSRF token goes in the JSON body rather than the query
+            // string so it stays out of URLs and server access logs.
+            const body = {
+                messages,
+                context: this.context,
+                token: mw.user.tokens.get('csrfToken'),
+            };
             if (this.sessionId) body.session_id = this.sessionId;
 
-            const url = mw.util.getUrl('Special:MWAssistantStream') +
-                '?token=' + encodeURIComponent(mw.user.tokens.get('csrfToken'));
+            const url = mw.util.getUrl('Special:MWAssistantStream');
 
             const res = await fetch(url, {
                 method: 'POST',
