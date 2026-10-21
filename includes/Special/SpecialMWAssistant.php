@@ -2,9 +2,10 @@
 
 namespace MWAssistant\Special;
 
+use MediaWiki\Exception\PermissionsError;
 use MediaWiki\SpecialPage\SpecialPage;
 use MediaWiki\Html\Html;
-use PermissionsError;
+use MWAssistant\Config;
 
 /**
  * Special page that provides the main interactive chat interface
@@ -42,6 +43,16 @@ class SpecialMWAssistant extends SpecialPage
     public function execute($par)
     {
         $this->setHeaders();
+
+        // With $wgMWAssistantEnabled = false, behave as if the page
+        // doesn't exist rather than loading a UI whose backend is off.
+        if (!Config::isEnabled()) {
+            $out = $this->getOutput();
+            $out->setStatusCode(404);
+            $out->showErrorPage('nosuchspecialpage', 'nospecialpagetext');
+            return;
+        }
+
         $this->requireUserPermissions();
 
         $out = $this->getOutput();
@@ -96,6 +107,12 @@ class SpecialMWAssistant extends SpecialPage
                 '' // JS app will mount here
             )
         );
+    }
+
+    /** @inheritDoc */
+    public function isListed(): bool
+    {
+        return Config::isEnabled();
     }
 
     /** @inheritDoc */

@@ -3,7 +3,6 @@
 namespace MWAssistant\Jobs;
 
 use MediaWiki\Content\TextContent;
-use MediaWiki\MediaWikiServices;
 use MediaWiki\Title\Title;
 use MWAssistant\MCP\EmbeddingsClient;
 use Throwable;
@@ -17,6 +16,9 @@ use Throwable;
  *  - bulk re-embeds aren't bounded by PHP's max_execution_time,
  *  - failures retry automatically with backoff,
  *  - duplicate enqueues collapse via removeDuplicates.
+ *
+ * If the page no longer exists when the job runs, its embeddings are
+ * deleted instead, so a stale update can never resurrect a deleted page.
  */
 class UpdateEmbeddingJob extends EmbeddingJobBase
 {
@@ -33,19 +35,48 @@ class UpdateEmbeddingJob extends EmbeddingJobBase
     {
         $logger = $this->logger();
         $title = $this->getTitle();
-        if (!$title) {
+        // Job falls back to a Special: placeholder when params lack a title.
+        if (!$title || !$title->canExist()) {
             $logger->warning('UpdateEmbeddingJob: missing title, dropping');
             return true;
         }
 
+        $prefixedTitle = $title->getPrefixedText();
+
         try {
-            $services = MediaWikiServices::getInstance();
-            $wikiPage = $services->getWikiPageFactory()->newFromTitle($title);
+            $systemUser = $this->resolveSystemUser();
+            if (!$systemUser) {
+                return $this->failMissingSystemUser('UpdateEmbeddingJob', $prefixedTitle);
+            }
+
+            $wikiPage = $this->loadLatestPage($title);
+            $client = new EmbeddingsClient();
+
+            if (!$wikiPage->exists()) {
+                // Deleted (or moved away) after this job was queued. The
+                // delete job runs in a separate queue and may already have
+                // finished, so converge on the current state ourselves rather
+                // than leave the page's old vectors behind.
+                $res = $client->deletePage($systemUser, $prefixedTitle);
+                if (isset($res['error'])) {
+                    return $this->classifyClientError(
+                        $logger,
+                        'UpdateEmbeddingJob',
+                        $prefixedTitle,
+                        $res
+                    );
+                }
+                $logger->debug('UpdateEmbeddingJob {title} -> page gone, embeddings deleted', [
+                    'title' => $prefixedTitle,
+                ]);
+                return true;
+            }
+
             $content = $wikiPage->getContent();
             if (!$content) {
-                // Page exists but has no current revision (deleted between
-                // enqueue and run); nothing to embed. Drop rather than retry —
-                // the situation won't fix itself.
+                // Page row exists but has no readable current revision;
+                // nothing to embed. Drop rather than retry — the situation
+                // won't fix itself.
                 return true;
             }
 
@@ -55,10 +86,9 @@ class UpdateEmbeddingJob extends EmbeddingJobBase
                 return true;
             }
 
-            $client = new EmbeddingsClient();
             $res = $client->updatePage(
-                $this->resolveSystemUser(),
-                $title->getPrefixedText(),
+                $systemUser,
+                $prefixedTitle,
                 $text,
                 $title->getNamespace(),
                 $wikiPage->getTimestamp(),
@@ -69,7 +99,7 @@ class UpdateEmbeddingJob extends EmbeddingJobBase
                 return $this->classifyClientError(
                     $logger,
                     'UpdateEmbeddingJob',
-                    $title->getPrefixedText(),
+                    $prefixedTitle,
                     $res
                 );
             }

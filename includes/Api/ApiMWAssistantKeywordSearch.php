@@ -4,6 +4,7 @@ namespace MWAssistant\Api;
 
 use MediaWiki\MediaWikiServices;
 use MediaWiki\User\UserIdentity;
+use StatusValue;
 
 /**
  * API module for performing standard MediaWiki keyword searches on behalf of a user.
@@ -64,25 +65,41 @@ class ApiMWAssistantKeywordSearch extends ApiMWAssistantBase
         // We could expose namespaces as a param later if needed.
         $searchEngine->setNamespaces([NS_MAIN]);
 
+        // searchText() may return a result set, a Status wrapping one
+        // (e.g. CirrusSearch), or null when full-text search is unavailable.
         $matches = $searchEngine->searchText($query);
+        if ($matches instanceof StatusValue) {
+            if (!$matches->isOK()) {
+                // Same handling as core's list=search.
+                $this->dieStatus($matches);
+            }
+            $matches = $matches->getValue();
+        }
+
+        $permissionManager = $services->getPermissionManager();
+        // PermissionManager::quickUserCan() needs a full User.
+        $user = $services->getUserFactory()->newFromUserIdentity($user);
 
         $out = [];
         if ($matches) {
             foreach ($matches as $result) {
                 // $result is a SearchResult object
+                if ($result->isBrokenTitle() || $result->isMissingRevision()) {
+                    continue;
+                }
                 $title = $result->getTitle();
 
                 if (!$title) {
                     continue;
                 }
 
-                if (!$services->getPermissionManager()->quickUserCan('read', $user, $title)) {
+                if (!$permissionManager->quickUserCan('read', $user, $title)) {
                     continue;
                 }
 
                 $out[] = [
                     'title' => $title->getPrefixedText(),
-                    'snippet' => $result->getTextSnippet($matches),
+                    'snippet' => $result->getTextSnippet(),
                     'size' => $result->getByteSize(),
                     'wordcount' => $result->getWordCount(),
                     'timestamp' => $result->getTimestamp(),
