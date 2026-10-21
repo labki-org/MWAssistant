@@ -2,9 +2,10 @@
 
 namespace MWAssistant\Api;
 
-use MediaWiki\MediaWikiServices;
-use MediaWiki\Parser\ParserOptions;
-use MediaWiki\Title\Title;
+use InvalidArgumentException;
+use MediaWiki\Api\ApiResult;
+use MediaWiki\Html\Html;
+use MWAssistant\SMW\SMWParserEvaluator;
 
 /**
  * API endpoint for executing Semantic MediaWiki queries.
@@ -12,10 +13,11 @@ use MediaWiki\Title\Title;
  * Responsibilities:
  *  - Authenticate via JWT or session (checkAccess()).
  *  - Validate "query" parameter.
- *  - Execute the SMW #ask query via SMWParserEvaluator.
- *  - Filter results: SMW does not respect Lockdown/ControlAccess read
- *    restrictions, so this endpoint extracts page links from the parser
- *    output and redacts any the user cannot read.
+ *  - Execute the SMW #ask query via SMWParserEvaluator, which parses it
+ *    with SMW's QueryProcessor (never the wikitext parser) and drops
+ *    results the acting user cannot read. SMW does not respect
+ *    Lockdown/ControlAccess read restrictions on its own.
+ *  - Return structured rows plus a fully escaped HTML table rendering.
  */
 class ApiMWAssistantSMW extends ApiMWAssistantBase
 {
@@ -40,59 +42,87 @@ class ApiMWAssistantSMW extends ApiMWAssistantBase
         // -------------------------------------------------------------
         if (!is_string($query) || trim($query) === '') {
             $this->dieWithError(
-                ['apierror-badparams', 'SMW query cannot be empty.'],
+                ['apierror-mwassistant-badparams', 'SMW query cannot be empty.'],
                 'query'
             );
+        }
+
+        if (!class_exists(\SMW\Query\QueryProcessor::class)) {
+            $this->dieWithError('apierror-mwassistant-smw-unavailable', 'smw-unavailable');
         }
 
         $user = $this->resolveUser($username, $userId);
 
         // -------------------------------------------------------------
-        // Execute query via Parser Evaluator
+        // Execute query (results are already permission-filtered)
         // -------------------------------------------------------------
-        $evaluator = new \MWAssistant\SMW\SMWParserEvaluator();
-        $parserOutput = $evaluator->evaluate($user, $query);
-        // ParserOutput::getText() was removed in MW 1.46; runOutputPipeline()
-        // (MW 1.44+) applies the same post-processing.
-        $html = method_exists($parserOutput, 'runOutputPipeline')
-            ? $parserOutput->runOutputPipeline(ParserOptions::newFromUser($user))->getContentHolderText()
-            : $parserOutput->getText();
-
-        // -------------------------------------------------------------
-        // Permission-filter: SMW ignores Lockdown/ControlAccess, so we
-        // check every page link in the output and redact denied ones.
-        // -------------------------------------------------------------
-        $services = MediaWikiServices::getInstance();
-        $permissionManager = $services->getPermissionManager();
-        $deniedTitles = [];
-
-        // getLinks() returns [namespace_id => [dbkey => page_id, ...], ...]
-        foreach ($parserOutput->getLinks() as $nsId => $pages) {
-            foreach ($pages as $dbKey => $pageId) {
-                $title = Title::makeTitle((int)$nsId, $dbKey);
-                if (!$permissionManager->quickUserCan('read', $user, $title)) {
-                    $deniedTitles[] = $title->getPrefixedText();
-                }
-            }
-        }
-
-        if (!empty($deniedTitles)) {
-            foreach ($deniedTitles as $denied) {
-                $html = str_replace($denied, '[FILTERED]', $html);
-            }
+        $evaluator = new SMWParserEvaluator();
+        try {
+            $data = $evaluator->evaluate($user, $query);
+        } catch (InvalidArgumentException $e) {
+            $this->dieWithError(
+                ['apierror-mwassistant-badparams', wfEscapeWikiText($e->getMessage())],
+                'query'
+            );
         }
 
         // -------------------------------------------------------------
         // Output result
         // -------------------------------------------------------------
+        $rows = $data['rows'];
+        foreach ($rows as &$row) {
+            // Keep printouts a JSON object even when empty.
+            ApiResult::setArrayType($row['printouts'], 'assoc');
+        }
+        unset($row);
+
         $this->getResult()->addValue(
             null,
             $this->getModuleName(),
             [
-                'result' => $html,
-                'filtered_count' => count($deniedTitles),
+                'result' => $this->renderHtml($data['printouts'], $rows),
+                'rows' => $rows,
+                'printouts' => $data['printouts'],
+                'count' => $data['count'],
+                'has_more' => $data['has_more'],
+                'errors' => $data['errors'],
             ]
         );
+    }
+
+    /**
+     * Render the filtered rows as an HTML table. Every value is escaped
+     * (Html::element), so the output is safe to insert into the DOM.
+     *
+     * @param string[] $labels Printout labels (column headers)
+     * @param array $rows Rows as returned by SMWParserEvaluator::evaluate()
+     * @return string
+     */
+    private function renderHtml(array $labels, array $rows): string
+    {
+        if (!$rows) {
+            return Html::element('p', [], $this->msg('mwassistant-smw-noresults')->text());
+        }
+
+        $header = Html::element('th', [], $this->msg('mwassistant-smw-col-page')->text());
+        foreach ($labels as $label) {
+            $header .= Html::element('th', [], $label);
+        }
+        $html = Html::rawElement('tr', [], $header);
+
+        foreach ($rows as $row) {
+            $cells = Html::element('td', [], $row['title']);
+            foreach ($labels as $label) {
+                $values = array_map(
+                    static fn ($value) => htmlspecialchars($value),
+                    $row['printouts'][$label] ?? []
+                );
+                $cells .= Html::rawElement('td', [], implode('<br>', $values));
+            }
+            $html .= Html::rawElement('tr', [], $cells);
+        }
+
+        return Html::rawElement('table', ['class' => 'wikitable mwassistant-smw-result'], $html);
     }
 
     /**
