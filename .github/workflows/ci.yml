@@ -25,12 +25,11 @@ jobs:
           extensions: json, mbstring
           tools: composer
 
-      - name: Install dependencies
-        run: composer install --prefer-dist --no-progress
-
+      # php -l needs no Composer dependencies. xargs (unlike find -exec ... \;)
+      # exits non-zero when any file fails, so syntax errors fail the job.
       - name: Syntax check
         run: |
-          find includes -name "*.php" -exec php -l {} \;
+          find includes -name "*.php" -print0 | xargs -0 -n1 php -l
 
   test:
     name: PHPUnit Tests
@@ -97,12 +96,17 @@ jobs:
             docker compose exec -T -w /var/www/html wiki php tests/phpunit/generatePHPUnitConfig.php
             RUNNER=(php vendor/bin/phpunit)
           fi
-          # The 1.46 bootstrap guesses "unit tests only" from the first path
-          # argument and would skip loading settings for the integration suite.
-          docker compose exec -T -w /var/www/html -e MEDIAWIKI_HAS_INTEGRATION_TESTS=1 wiki "${RUNNER[@]}" \
-            --testdox \
-            /mw-user-extensions/MWAssistant/tests/phpunit/unit/ \
-            /mw-user-extensions/MWAssistant/tests/phpunit/integration/
+          # PHPUnit 9 only runs its first path argument, so run each suite
+          # directory that has tests. The 1.46 bootstrap guesses "unit tests
+          # only" from the path and would skip loading settings, so force it.
+          for suite in unit integration; do
+            if ! ls tests/phpunit/$suite/*Test.php >/dev/null 2>&1; then
+              echo "No tests in tests/phpunit/$suite; skipping."
+              continue
+            fi
+            docker compose exec -T -w /var/www/html -e MEDIAWIKI_HAS_INTEGRATION_TESTS=1 wiki "${RUNNER[@]}" \
+              --testdox "/mw-user-extensions/MWAssistant/tests/phpunit/$suite/"
+          done
 
       - name: Write test summary
         if: always()
